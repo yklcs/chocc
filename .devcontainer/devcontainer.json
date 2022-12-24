@@ -1,0 +1,7 @@
+{
+  "name": "devcontainer",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "forwardPorts": []
+}
