@@ -21,13 +21,15 @@ typedef enum {
 
 typedef struct {
   token_kind_t kind;
-  uint32_t line;
+  unsigned int line;
+  unsigned int column;
   char text[32];
 } token_t;
 
 typedef dynarr_t(token_t) token_dynarr_t;
 
-char *next_token(char *pos, token_dynarr_t *tokens, uint32_t *line);
+char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
+                 unsigned int *column);
 token_dynarr_t lex(char *src);
 char *format_token(char *buffer, size_t len, token_t token);
 
