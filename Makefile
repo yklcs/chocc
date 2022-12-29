@@ -2,8 +2,7 @@ CC 							= clang
 CCFLAGS 				= -std=c99
 CCFLAGS_DEBUG 	= -g3 -Wall -fsanitize=address
 OUT 						= chocc
-SOURCES					= main.c lex.c
-HEADERS					= lex.h
+SOURCES					= main.c lex.c io.c
 
 .PHONY: all debug build clean run
 
