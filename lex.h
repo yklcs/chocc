@@ -14,11 +14,15 @@ typedef enum {
   PAREN_RIGHT,
   COMMA,
   SEMICOLON,
-} token_name_t;
+
+  // identifiers
+  ID,
+} token_kind_t;
 
 typedef struct {
-  token_name_t name;
+  token_kind_t kind;
   uint32_t line;
+  char text[32];
 } token_t;
 
 typedef dynarr_t(token_t) token_dynarr_t;
