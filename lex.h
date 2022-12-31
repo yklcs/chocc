@@ -139,6 +139,10 @@ typedef struct {
 
 typedef dynarr_t(token_t) token_dynarr_t;
 
+void skip(char **pos, unsigned int *column, int n);
+void add_token(char **pos, token_dynarr_t *tokens, token_kind_t token_kind,
+               char *token_text, unsigned int *token_line,
+               unsigned int *token_column);
 char *next_token(char *next, token_dynarr_t *tokens, unsigned int *line,
                  unsigned int *column);
 token_dynarr_t lex(char *src);
