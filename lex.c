@@ -103,6 +103,25 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       done = true;
     }
 
+    if (c == '*') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, StarAssn, "*=", line, column);
+      } else {
+        add_token(&pos, tokens, Star, "*", line, column);
+      }
+      done = true;
+    }
+
+    if (c == '/') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, SlashAssn, "/=", line, column);
+      } else {
+        add_token(&pos, tokens, Slash, "/", line, column);
+      }
+      // TODO: comments should be parsed somewhere here
+      done = true;
+    }
+
     if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
       char text[32] = {0};
 
