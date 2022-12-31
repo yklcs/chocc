@@ -64,12 +64,13 @@ typedef enum {
 
   // access
   Arrow, // ->
+  Dot,   //.
 
   // identifiers
   Id, // /[a-zA-Z_][a-zA-Z0-9_]*/
 
   // keywords
-  Auto, // 47
+  Auto, // 48
   Break,
   Case,
   Char,
@@ -121,14 +122,15 @@ static const char *token_kind_map[] = {
     "Pipe",        "Caret",    "LShft",      "RShft",     "Exclaim",
     "AmpAmp",      "PipePipe", "Question",   "Colon",     "Eq",
     "Neq",         "Lt",       "Gt",         "Leq",       "Geq",
-    "Arrow",       "Id",       "Auto",       "Break",     "Case",
-    "Char",        "Const",    "Continue",   "Default",   "Do",
-    "Double",      "Else",     "Enum",       "Extern",    "Float",
-    "For",         "Goto",     "If",         "Inline",    "Int",
-    "Long",        "Register", "Restrict",   "Return",    "Short",
-    "Signed",      "Sizeof",   "Static",     "Struct",    "Switch",
-    "Typedef",     "Union",    "Unsigned",   "Void",      "Volatile",
-    "While",       "Bool",     "Complex",    "Imaginary", "Hash"};
+    "Arrow",       "Dot",      "Id",         "Auto",      "Break",
+    "Case",        "Char",     "Const",      "Continue",  "Default",
+    "Do",          "Double",   "Else",       "Enum",      "Extern",
+    "Float",       "For",      "Goto",       "If",        "Inline",
+    "Int",         "Long",     "Register",   "Restrict",  "Return",
+    "Short",       "Signed",   "Sizeof",     "Static",    "Struct",
+    "Switch",      "Typedef",  "Union",      "Unsigned",  "Void",
+    "Volatile",    "While",    "Bool",       "Complex",   "Imaginary",
+    "Hash"};
 
 static const char *keywords[37] = {
     "auto",       "break",    "case",     "char",   "const",   "continue",

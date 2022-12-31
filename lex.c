@@ -60,6 +60,10 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       add_token(&pos, tokens, RParen, ")", line, column);
       return pos;
     }
+    case '.': {
+      add_token(&pos, tokens, Dot, ".", line, column);
+      return pos;
+    }
     case ',': {
       add_token(&pos, tokens, Comma, ",", line, column);
       return pos;
@@ -126,7 +130,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       // check if keyword
       for (int i = 0; i < 37; i++) {
         if (strcmp(keywords[i], text) == 0) {
-          add_token(&pos, tokens, 47 + i, keywords[i], line, column);
+          add_token(&pos, tokens, 48 + i, keywords[i], line, column);
           return pos;
         }
       }
