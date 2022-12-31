@@ -6,19 +6,25 @@
 #include "dynarrsaur.h"
 #include "lex.h"
 
-char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
+char *next_token(char *next, token_dynarr_t *tokens, unsigned int *line,
                  unsigned int *column_begin) {
   token_t token = {0};
   unsigned int column_end = *column_begin + 1;
   bool done = false;
   char c;
 
-  for (; !done && (c = *pos++);) {
+  for (; !done && (c = *next++);) {
     switch (c) {
     case '\n': {
       *column_begin = 1;
       (*line)++;
-      return pos + 1;
+      return next;
+    }
+    case '#': {
+      strcpy(token.text, "#");
+      token.kind = Hash;
+      done = true;
+      break;
     }
     case '{': {
       strcpy(token.text, "{");
@@ -70,23 +76,59 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
     }
     }
 
+    if (c == '+') {
+      if (*next == '+') {
+        next++;
+        column_end++;
+        strcpy(token.text, "++");
+        token.kind = PlusPlus;
+      } else if (*next == '=') {
+        next++;
+        column_end++;
+        strcpy(token.text, "+=");
+        token.kind = PlusAssn;
+      } else {
+        strcpy(token.text, "+");
+        token.kind = Plus;
+      }
+      done = true;
+    }
+
+    if (c == '-') {
+      if (*next == '-') {
+        next++;
+        column_end++;
+        strcpy(token.text, "--");
+        token.kind = MinusMinus;
+      } else if (*next == '=') {
+        next++;
+        column_end++;
+        strcpy(token.text, "-=");
+        token.kind = MinusAssn;
+      } else {
+        strcpy(token.text, "-");
+        token.kind = Minus;
+      }
+      done = true;
+    }
+
     if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
-      char current[2] = {0};
       token.kind = Id;
 
-      while (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
-             ('0' <= c && c <= '9')) {
-        current[0] = c;
-        strcat(token.text, current);
-        c = *pos++;
+      int i = 0;
+      for (; c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
+             ('0' <= c && c <= '9');
+           c = next[i++]) {
+        token.text[i] = c;
         column_end++;
       }
 
+      next += i - 1;
       done = true;
     }
 
     if (!done) {
-      *column_begin = column_end++;
+      *column_begin = column_end;
     }
   }
 
@@ -97,7 +139,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
   }
 
   *column_begin = column_end;
-  return pos;
+  return next;
 }
 
 token_dynarr_t lex(char *src) {
@@ -108,7 +150,7 @@ token_dynarr_t lex(char *src) {
   unsigned int column = 1;
   unsigned int line = 1;
 
-  while (*(pos + 1)) {
+  while (pos[1]) {
     pos = next_token(pos, &tokens, &line, &column);
   }
 
