@@ -12,7 +12,7 @@ void skip(char **pos, unsigned int *column, int n) {
 }
 
 void add_token(char **pos, token_dynarr_t *tokens, token_kind_t token_kind,
-               char *token_text, unsigned int *token_line,
+               const char *token_text, unsigned int *token_line,
                unsigned int *token_column) {
   token_t token = {
       .kind = token_kind, .column = *token_column, .line = *token_line};
@@ -25,9 +25,7 @@ void add_token(char **pos, token_dynarr_t *tokens, token_kind_t token_kind,
 
 char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
                  unsigned int *column) {
-  bool done = false;
-
-  for (char c = *pos; !done; c = *pos) {
+  for (char c = *pos;; c = *pos) {
     switch (c) {
     case '\n': {
       *column = 1;
@@ -36,48 +34,39 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
     }
     case '#': {
       add_token(&pos, tokens, Hash, "#", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case '{': {
       add_token(&pos, tokens, LBrace, "{", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case '}': {
       add_token(&pos, tokens, RBrace, "}", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case '[': {
       add_token(&pos, tokens, LSquare, "[", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case ']': {
       add_token(&pos, tokens, RSquare, "]", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case '(': {
       add_token(&pos, tokens, LParen, "(", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case ')': {
       add_token(&pos, tokens, RParen, ")", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case ',': {
       add_token(&pos, tokens, Comma, ",", line, column);
-      done = true;
-      break;
+      return pos;
     }
     case ';': {
       add_token(&pos, tokens, Semi, ";", line, column);
-      done = true;
-      break;
+      return pos;
     }
     }
 
@@ -89,7 +78,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       } else {
         add_token(&pos, tokens, Plus, "+", line, column);
       }
-      done = true;
+      return pos;
     }
 
     if (c == '-') {
@@ -100,7 +89,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       } else {
         add_token(&pos, tokens, Minus, "-", line, column);
       }
-      done = true;
+      return pos;
     }
 
     if (c == '*') {
@@ -109,7 +98,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       } else {
         add_token(&pos, tokens, Star, "*", line, column);
       }
-      done = true;
+      return pos;
     }
 
     if (c == '/') {
@@ -119,7 +108,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
         add_token(&pos, tokens, Slash, "/", line, column);
       }
       // TODO: comments should be parsed somewhere here
-      done = true;
+      return pos;
     }
 
     if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
@@ -132,16 +121,20 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
         text[i] = c;
       }
 
+      // check if keyword
+      for (int i = 0; i < 37; i++) {
+        if (strcmp(keywords[i], text) == 0) {
+          add_token(&pos, tokens, 47 + i, keywords[i], line, column);
+          return pos;
+        }
+      }
+
       add_token(&pos, tokens, Id, text, line, column);
-      done = true;
+      return pos;
     }
 
-    if (!done) {
-      skip(&pos, column, 1);
-    }
+    skip(&pos, column, 1);
   }
-
-  return pos;
 }
 
 token_dynarr_t lex(char *src) {

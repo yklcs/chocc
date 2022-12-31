@@ -69,7 +69,7 @@ typedef enum {
   Id, // /[a-zA-Z_][a-zA-Z0-9_]*/
 
   // keywords
-  Auto,
+  Auto, // 47
   Break,
   Case,
   Char,
@@ -130,6 +130,16 @@ static const char *token_kind_map[] = {
     "Typedef",     "Union",    "Unsigned",   "Void",      "Volatile",
     "While",       "Bool",     "Complex",    "Imaginary", "Hash"};
 
+static const char *keywords[37] = {
+    "auto",       "break",    "case",     "char",   "const",   "continue",
+    "default",    "do",       "double",   "else",   "enum",    "extern",
+    "float",      "for",      "goto",     "if",     "inline",  "int",
+    "long",       "register", "restrict", "return", "short",   "signed",
+    "sizeof",     "static",   "struct",   "switch", "typedef", "union",
+    "unsigned",   "void",     "volatile", "while",  "_Bool",   "_Complex",
+    "_Imaginary",
+};
+
 typedef struct {
   token_kind_t kind;
   unsigned int line;
@@ -141,7 +151,7 @@ typedef dynarr_t(token_t) token_dynarr_t;
 
 void skip(char **pos, unsigned int *column, int n);
 void add_token(char **pos, token_dynarr_t *tokens, token_kind_t token_kind,
-               char *token_text, unsigned int *token_line,
+               const char *token_text, unsigned int *token_line,
                unsigned int *token_column);
 char *next_token(char *next, token_dynarr_t *tokens, unsigned int *line,
                  unsigned int *column);
