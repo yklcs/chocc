@@ -86,6 +86,8 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
         add_token(&pos, tokens, MinusMinus, "--", line, column);
       } else if (pos[1] == '=') {
         add_token(&pos, tokens, MinusAssn, "-=", line, column);
+      } else if (pos[1] == '>') {
+        add_token(&pos, tokens, Arrow, "->", line, column);
       } else {
         add_token(&pos, tokens, Minus, "-", line, column);
       }
