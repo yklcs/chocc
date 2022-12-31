@@ -6,10 +6,6 @@
 #include "dynarrsaur.h"
 #include "lex.h"
 
-const char *token_kind_map[] = {"BRACE_LEFT",    "BRACE_RIGHT", "BRACKET_LEFT",
-                                "BRACKET_RIGHT", "PAREN_LEFT",  "PAREN_RIGHT",
-                                "COMMA",         "SEMICOLON",   "ID"};
-
 char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
                  unsigned int *column_begin) {
   token_t token = {0};
@@ -26,49 +22,49 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
     }
     case '{': {
       strcpy(token.text, "{");
-      token.kind = BRACE_LEFT;
+      token.kind = LBrace;
       done = true;
       break;
     }
     case '}': {
       strcpy(token.text, "}");
-      token.kind = BRACE_RIGHT;
+      token.kind = RBrace;
       done = true;
       break;
     }
     case '[': {
       strcpy(token.text, "[");
-      token.kind = BRACKET_LEFT;
+      token.kind = LSquare;
       done = true;
       break;
     }
     case ']': {
       strcpy(token.text, "]");
-      token.kind = BRACKET_RIGHT;
+      token.kind = RSquare;
       done = true;
       break;
     }
     case '(': {
       strcpy(token.text, "(");
-      token.kind = PAREN_LEFT;
+      token.kind = LParen;
       done = true;
       break;
     }
     case ')': {
       strcpy(token.text, ")");
-      token.kind = PAREN_RIGHT;
+      token.kind = RParen;
       done = true;
       break;
     }
     case ',': {
       strcpy(token.text, ",");
-      token.kind = COMMA;
+      token.kind = Comma;
       done = true;
       break;
     }
     case ';': {
       strcpy(token.text, ";");
-      token.kind = SEMICOLON;
+      token.kind = Semi;
       done = true;
       break;
     }
@@ -76,7 +72,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
 
     if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
       char current[2] = {0};
-      token.kind = ID;
+      token.kind = Id;
 
       while (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
              ('0' <= c && c <= '9')) {

@@ -5,19 +5,130 @@
 #include "dynarrsaur.h"
 
 typedef enum {
+  // literals
+  Number,
+  String,
+
   // delimiters
-  BRACE_LEFT,
-  BRACE_RIGHT,
-  BRACKET_LEFT,
-  BRACKET_RIGHT,
-  PAREN_LEFT,
-  PAREN_RIGHT,
-  COMMA,
-  SEMICOLON,
+  LBrace,  // {
+  RBrace,  // }
+  LSquare, // [
+  RSquare, // ]
+  LParen,  // (
+  RParen,  // )
+  Comma,   // ,
+  Semi,    // ;
+
+  // assignment
+  Assn,        // =
+  PlusAssn,    // +=
+  MinusAssn,   // -=
+  StarAssn,    // *=
+  SlashAssn,   // /=
+  PercentAssn, // %=
+  AmpAssn,     // &=
+  BarAssn,     // |=
+  CaretAssn,   // ^=
+  LShftAssn,   // <<=
+  RShftAssn,   // >>=
+
+  // {inc,dec}rement
+  PlusPlus,   // ++
+  MinusMinus, // --
+
+  // arithmetic
+  Plus,     // +
+  Minus,    // -
+  Star,     // *
+  Slash,    // /
+  Percent,  // %
+  Tilde,    // ~
+  Amp,      // &
+  Pipe,     // |
+  Caret,    // ^
+  LShft,    // <<
+  RShft,    // >>
+  Exclaim,  // !
+  AmpAmp,   // &&
+  PipePipe, // ||
+  Question, // ?
+  Colon,    // :
+
+  // comparison
+  Eq,  // ==
+  Neq, // !=
+  Lt,  // <
+  Gt,  // >
+  Leq, // <=
+  Geq, // >=
+
+  // access
+  Arrow, // ->
 
   // identifiers
-  ID,
+  Id, // /[a-zA-Z_][a-zA-Z0-9_]*/
+
+  // keywords
+  Auto,
+  Break,
+  Case,
+  Char,
+  Const,
+  Continue,
+  Default,
+  Do,
+  Double,
+  Else,
+  Enum,
+  Extern,
+  Float,
+  For,
+  Goto,
+  If,
+  Inline,
+  Int,
+  Long,
+  Register,
+  Restrict,
+  Return,
+  Short,
+  Signed,
+  Sizeof,
+  Static,
+  Struct,
+  Switch,
+  Typedef,
+  Union,
+  Unsigned,
+  Void,
+  Volatile,
+  While,
+  Bool,      // _Bool
+  Complex,   // _Complex
+  Imaginary, // _Imaginary
+
+  // preprocessor
+  Hash // #
 } token_kind_t;
+
+static const char *token_kind_map[] = {
+    "Number",      "String",   "LBrace",     "RBrace",    "LSquare",
+    "RSquare",     "LParen",   "RParen",     "Comma",     "Semi",
+    "Assn",        "PlusAssn", "MinusAssn",  "StarAssn",  "SlashAssn",
+    "PercentAssn", "AmpAssn",  "BarAssn",    "CaretAssn", "LShftAssn",
+    "RShftAssn",   "PlusPlus", "MinusMinus", "Plus",      "Minus",
+    "Star",        "Slash",    "Percent",    "Tilde",     "Amp",
+    "Pipe",        "Caret",    "LShft",      "RShft",     "Exclaim",
+    "AmpAmp",      "PipePipe", "Question",   "Colon",     "Eq",
+    "Neq",         "Lt",       "Gt",         "Leq",       "Geq",
+    "Arrow",       "Id",       "Auto",       "Break",     "Case",
+    "Char",        "Const",    "Continue",   "Default",   "Do",
+    "Double",      "Else",     "Enum",       "Extern",    "Float",
+    "For",         "Goto",     "If",         "Inline",    "Int",
+    "Long",        "Register", "Restrict",   "Return",    "Short",
+    "Signed",      "Sizeof",   "Static",     "Struct",    "Switch",
+    "Typedef",     "Union",    "Unsigned",   "Void",      "Volatile",
+    "While",       "Bool",     "Complex",    "Imaginary", "Hash"};
 
 typedef struct {
   token_kind_t kind;
