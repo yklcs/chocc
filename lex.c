@@ -72,6 +72,18 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       add_token(&pos, tokens, Semi, ";", line, column);
       return pos;
     }
+    case '~': {
+      add_token(&pos, tokens, Tilde, "~", line, column);
+      return pos;
+    }
+    case '?': {
+      add_token(&pos, tokens, Question, "?", line, column);
+      return pos;
+    }
+    case ':': {
+      add_token(&pos, tokens, Colon, ":", line, column);
+      return pos;
+    }
     }
 
     if (c == '+') {
@@ -114,6 +126,85 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
         add_token(&pos, tokens, Slash, "/", line, column);
       }
       // TODO: comments should be parsed somewhere here
+      return pos;
+    }
+
+    if (c == '%') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, PercentAssn, "%=", line, column);
+      } else {
+        add_token(&pos, tokens, Percent, "%", line, column);
+      }
+      return pos;
+    }
+
+    if (c == '&') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, AmpAssn, "&=", line, column);
+      } else if (pos[1] == '&') {
+        add_token(&pos, tokens, AmpAmp, "&&", line, column);
+      } else {
+        add_token(&pos, tokens, Amp, "&", line, column);
+      }
+      return pos;
+    }
+
+    if (c == '|') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, BarAssn, "|=", line, column);
+      } else if (pos[1] == '&') {
+        add_token(&pos, tokens, BarBar, "||", line, column);
+      } else {
+        add_token(&pos, tokens, Bar, "|", line, column);
+      }
+      return pos;
+    }
+
+    if (c == '^') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, CaretAssn, "^=", line, column);
+      } else {
+        add_token(&pos, tokens, Caret, "^", line, column);
+      }
+      return pos;
+    }
+
+    if (c == '<') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, Leq, "<=", line, column);
+      } else if (pos[1] == '<') {
+        if (pos[2] == '=') {
+          add_token(&pos, tokens, LShftAssn, "<<=", line, column);
+        } else {
+          add_token(&pos, tokens, LShft, "<<", line, column);
+        }
+      } else {
+        add_token(&pos, tokens, Lt, "<", line, column);
+      }
+      return pos;
+    }
+
+    if (c == '>') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, Geq, ">=", line, column);
+      } else if (pos[1] == '>') {
+        if (pos[2] == '=') {
+          add_token(&pos, tokens, RShftAssn, ">>=", line, column);
+        } else {
+          add_token(&pos, tokens, RShft, ">>", line, column);
+        }
+      } else {
+        add_token(&pos, tokens, Gt, ">", line, column);
+      }
+      return pos;
+    }
+
+    if (c == '!') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, Neq, "!=", line, column);
+      } else {
+        add_token(&pos, tokens, Exclaim, "!", line, column);
+      }
       return pos;
     }
 
