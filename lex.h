@@ -44,13 +44,13 @@ typedef enum {
   Percent,  // %
   Tilde,    // ~
   Amp,      // &
-  Pipe,     // |
+  Bar,      // |
   Caret,    // ^
   LShft,    // <<
   RShft,    // >>
   Exclaim,  // !
   AmpAmp,   // &&
-  PipePipe, // ||
+  BarBar,   // ||
   Question, // ?
   Colon,    // :
 
@@ -119,8 +119,8 @@ static const char *token_kind_map[] = {
     "PercentAssn", "AmpAssn",  "BarAssn",    "CaretAssn", "LShftAssn",
     "RShftAssn",   "PlusPlus", "MinusMinus", "Plus",      "Minus",
     "Star",        "Slash",    "Percent",    "Tilde",     "Amp",
-    "Pipe",        "Caret",    "LShft",      "RShft",     "Exclaim",
-    "AmpAmp",      "PipePipe", "Question",   "Colon",     "Eq",
+    "Bar",         "Caret",    "LShft",      "RShft",     "Exclaim",
+    "AmpAmp",      "BarBar",   "Question",   "Colon",     "Eq",
     "Neq",         "Lt",       "Gt",         "Leq",       "Geq",
     "Arrow",       "Dot",      "Id",         "Auto",      "Break",
     "Case",        "Char",     "Const",      "Continue",  "Default",
