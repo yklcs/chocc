@@ -208,6 +208,20 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       return pos;
     }
 
+    if (c == '"') {
+      char text[1024] = {0};
+
+      size_t i;
+      for (i = 1; pos[i] != '"'; i++) {
+        text[i] = pos[i];
+      }
+      text[0] = '"';
+      text[i] = '"';
+
+      add_token(&pos, tokens, String, text, line, column);
+      return pos;
+    }
+
     if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
       char text[32] = {0};
 
