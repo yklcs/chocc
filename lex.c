@@ -231,6 +231,18 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       return pos;
     }
 
+    if ('0' <= c && c <= '9') {
+      char text[32] = {0};
+
+      int i = 0;
+      for (; ('0' <= c && c <= '9'); c = pos[++i]) {
+        text[i] = c;
+      }
+
+      add_token(&pos, tokens, Number, text, line, column);
+      return pos;
+    }
+
     if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
       char text[32] = {0};
 
