@@ -122,6 +122,15 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
     if (c == '/') {
       if (pos[1] == '=') {
         add_token(&pos, tokens, SlashAssn, "/=", line, column);
+      } else if (pos[1] == '/') {
+        for (skip(&pos, column, 2); *pos != '\n';) {
+          skip(&pos, column, 1);
+        }
+      } else if (pos[1] == '*') {
+        for (skip(&pos, column, 2); *pos != '*' || pos[1] != '/';) {
+          skip(&pos, column, 1);
+        }
+        skip(&pos, column, 2);
       } else {
         add_token(&pos, tokens, Slash, "/", line, column);
       }
