@@ -109,7 +109,10 @@ typedef enum {
   Imaginary, // _Imaginary
 
   // preprocessor
-  Hash // #
+  Hash, // #
+
+  // internal
+  Eof
 } token_kind_t;
 
 static const char *token_kind_map[] = {
@@ -130,7 +133,7 @@ static const char *token_kind_map[] = {
     "Short",       "Signed",   "Sizeof",     "Static",    "Struct",
     "Switch",      "Typedef",  "Union",      "Unsigned",  "Void",
     "Volatile",    "While",    "Bool",       "Complex",   "Imaginary",
-    "Hash"};
+    "Hash",        "Eof"};
 
 static const char *keywords[37] = {
     "auto",       "break",    "case",     "char",   "const",   "continue",

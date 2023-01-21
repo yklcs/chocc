@@ -281,6 +281,7 @@ token_dynarr_t lex(char *src) {
     pos = next_token(pos, &tokens, &line, &column);
   }
 
+  add_token(&pos, &tokens, Eof, "", &line, &column);
   return tokens;
 }
 
