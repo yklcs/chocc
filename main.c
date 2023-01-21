@@ -2,6 +2,7 @@
 
 #include "io.h"
 #include "lex.h"
+#include "parse.c"
 
 int main(int argc, char *argv[]) {
   char *src;
@@ -15,6 +16,10 @@ int main(int argc, char *argv[]) {
     puts(format_token(buffer, buffer_size, tokens.data[i]));
   }
 
-  dynarr_free(tokens);
+  tokens.data_end = NULL;
+
+  parse_translation_unit(tokens.data);
+  print_ast(ast);
+
   return 0;
 }
