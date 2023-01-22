@@ -19,17 +19,18 @@ void append_node(ast_node_t *parent, ast_node_t *child) {
   }
 }
 
-void print_ast(ast_node_t *root) {
-  int depth = 0;
-  for (ast_node_t *cur = root; cur; cur = cur->child) {
-    for (ast_node_t *sib = cur; sib; sib = sib->next) {
-      for (int i = 0; i < depth; i++) {
-        putchar(' ');
-      }
-      printf("%s\n", ast_node_kind_map[sib->kind]);
+void _print_ast(ast_node_t *root, int depth) {
+  printf("%s\n", ast_node_kind_map[root->kind]);
+  for (ast_node_t *sib = root->child; sib; sib = sib->next) {
+    for (int i = 0; i < depth; i++) {
+      printf("  ");
     }
-    depth++;
+    _print_ast(sib, depth + 1);
   }
+}
+
+void print_ast(ast_node_t *root) {
+  _print_ast(root, 1);
 }
 
 void throw() {
@@ -66,6 +67,7 @@ void parse_function_definition(ast_node_t *root) {
   node->kind = function_defintion;
   append_node(root, node);
   parse_declaration_specifiers(node);
+  parse_declarator(node);
 }
 
 void parse_declaration_specifiers(ast_node_t *root) {
@@ -81,7 +83,6 @@ void parse_declaration_specifiers(ast_node_t *root) {
     }
   }
 }
-
 
 void parse_storage_class_specifier(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
@@ -140,10 +141,32 @@ bool is_type_specifier(token_t token) {
 }
 
 void parse_declarator(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = declarator;
+
+  if (token_ptr->kind == Star) {
+    parse_pointer(node);
+  }
+
+  parse_direct_declarator(node);
+  append_node(root, node);
 }
 
 void parse_direct_declarator(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = direct_declarator;
+  append_node(root, node);
 }
 
 void parse_pointer(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = pointer;
+
+  match(Star);
+
+  for (; token_ptr->kind == Star;) {
+    parse_pointer(node);
+  }
+
+  append_node(root, node);
 }

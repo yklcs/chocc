@@ -18,6 +18,8 @@ typedef enum {
   declarator,
   declaration_list,
   compound_statement,
+  pointer,
+  direct_declarator
 } ast_node_kind_t;
 
 static const char *ast_node_kind_map[] = {
@@ -25,7 +27,7 @@ static const char *ast_node_kind_map[] = {
     "declaration",      "declaration_specifiers", "storage_class_specifier",
     "type_specifier",   "type_qualifier",         "function_specifier",
     "declarator",       "declaration_list",       "compound_statement",
-};
+    "pointer",          "direct_declarator"};
 
 typedef struct ast_node_t {
   struct ast_node_t *child;
@@ -84,6 +86,13 @@ void parse_argument_expression_list(ast_node_t *root);
 //                   | sizeof(type_name)
 void parse_unary_expression(ast_node_t *root);
 
+// 6.7
+// storage_class_specifier declaration_specifiers?
+// type_specifier declaration_specifiers?
+// type_qualifier declaration_specifiers?
+// function_specifier declaration_specifiers?
+void parse_declaration_specifiers(ast_node_t *root);
+
 // 6.7.1
 // storage_class_specifier := typedef
 //                            extern
@@ -111,9 +120,36 @@ bool is_storage_class_specifier(token_t token);
 void parse_type_specifier(ast_node_t *root);
 bool is_type_specifier(token_t token);
 
+// 6.7.3
+// type_qualifier := const | restrict | volatile
+void parse_type_qualifier(ast_node_t *root);
+
+// 6.7.4
+// function_specifier := inline
+void parse_function_specifier(ast_node_t *root);
+
 // 6.7.5
 // declarator := pointer? direct_declarator
 void parse_declarator(ast_node_t *root);
+
+// 6.7.5
+// direct_declarator := identifier
+//                    | (declarator)
+//                    | direct_declarator
+//                        [type_qualifier_list? assignment_expression?]
+//                    | direct_declarator
+//                        [static type_qualifier_list? assignment_expression]
+//                    | direct_declarator
+//                        [type_qualifier_list static assignment_expression]
+//                    | direct_declarator [type_qualifier_list? *]
+//                    | direct_declarator (parameter_type_list)
+//                    | direct_declarator (identifier_list?)
+void parse_direct_declarator(ast_node_t *root);
+
+// 6.7.5
+// pointer := *type_qualifier_list?
+//          | *type_qualifier_list? pointer
+void parse_pointer(ast_node_t *root);
 
 // 6.8.2
 // compound_statement := {block_item_list?}
@@ -149,9 +185,5 @@ void parse_function_definition(ast_node_t *root);
 //                         | type_specifier declaration_specifiers?
 //                         | type_qualifier declaration_specifiers?
 //                         | function_specifier declaration_specifiers?
-
-void parse_declaration_list(ast_node_t *root);
-
-void parse_declaration_specifiers(ast_node_t *root);
 
 #endif
