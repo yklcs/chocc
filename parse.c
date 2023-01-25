@@ -68,6 +68,8 @@ void parse_function_definition(ast_node_t *root) {
   append_node(root, node);
   parse_declaration_specifiers(node);
   parse_declarator(node);
+  // Don't support K&R style function declarations
+  parse_compound_statement(node);
 }
 
 void parse_declaration_specifiers(ast_node_t *root) {
@@ -152,9 +154,116 @@ void parse_declarator(ast_node_t *root) {
   append_node(root, node);
 }
 
+void parse_type_qualifier(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = type_qualifier;
+
+  if (is_type_qualifier(*token_ptr)) {
+    match(token_ptr->kind);
+    append_node(root, node);
+  } else {
+    throw();
+  }
+}
+
+bool is_type_qualifier(token_t token) {
+  switch (token.kind) {
+  case Const:
+  case Restrict:
+  case Volatile:
+    return true;
+  default:
+    return false;
+    ;
+  }
+}
+
 void parse_direct_declarator(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = direct_declarator;
+
+  if (token_ptr->kind == Id) {
+    parse_identifier(node);
+  } else if (token_ptr->kind == LParen) {
+    match(LParen);
+    parse_declarator(node);
+    match(RParen);
+  }
+
+  for (; token_ptr->kind == LSquare || token_ptr->kind == LParen;) {
+    // parse_direct_declarator(node);
+    if (token_ptr->kind == LSquare) {
+      match(LSquare);
+      match(RSquare);
+    } else if (token_ptr->kind == LParen) {
+      match(LParen);
+      parse_parameter_type_list(node);
+      match(RParen);
+    }
+  }
+
+  append_node(root, node);
+}
+
+void parse_type_qualifier_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = type_qualifier_list;
+
+  parse_type_qualifier(node);
+
+  for (; is_type_qualifier(*token_ptr);) {
+    parse_type_qualifier(node);
+  }
+
+  append_node(root, node);
+}
+
+void parse_parameter_type_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = parameter_type_list;
+
+  parse_parameter_list(node);
+  if (token_ptr->kind == Comma) {
+    match(Comma);
+    // TODO: figure out ellipsis
+  }
+
+  append_node(root, node);
+}
+
+void parse_parameter_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = parameter_list;
+
+  parse_parameter_declaration(node);
+  for (; token_ptr->kind == Comma;) {
+    match(Comma);
+    parse_parameter_declaration(node);
+  }
+
+  append_node(root, node);
+}
+
+void parse_parameter_declaration(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = parameter_declaration;
+
+  parse_declaration_specifiers(node);
+  parse_declarator(node);
+
+  append_node(root, node);
+}
+
+void parse_identifier_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = identifier_list;
+
+  parse_identifier(node);
+  for (; token_ptr->kind == Comma;) {
+    match(Comma);
+    parse_identifier(node);
+  }
+
   append_node(root, node);
 }
 
@@ -168,5 +277,23 @@ void parse_pointer(ast_node_t *root) {
     parse_pointer(node);
   }
 
+  append_node(root, node);
+}
+
+void parse_identifier(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = identifier;
+  match(Id);
+  append_node(root, node);
+}
+
+void parse_compound_statement(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = compound_statement;
+  match(LBrace);
+  for (; token_ptr->kind != RBrace; token_ptr++) {
+    // TODO: parse block_item_list
+  }
+  match(RBrace);
   append_node(root, node);
 }

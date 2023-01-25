@@ -19,15 +19,37 @@ typedef enum {
   declaration_list,
   compound_statement,
   pointer,
-  direct_declarator
+  direct_declarator,
+  identifier,
+  type_qualifier_list,
+  parameter_type_list,
+  parameter_list,
+  parameter_declaration,
+  identifier_list
 } ast_node_kind_t;
 
 static const char *ast_node_kind_map[] = {
-    "translation_unit", "external_declaration",   "function_defintion",
-    "declaration",      "declaration_specifiers", "storage_class_specifier",
-    "type_specifier",   "type_qualifier",         "function_specifier",
-    "declarator",       "declaration_list",       "compound_statement",
-    "pointer",          "direct_declarator"};
+    "translation_unit",
+    "external_declaration",
+    "function_defintion",
+    "declaration",
+    "declaration_specifiers",
+    "storage_class_specifier",
+    "type_specifier",
+    "type_qualifier",
+    "function_specifier",
+    "declarator",
+    "declaration_list",
+    "compound_statement",
+    "pointer",
+    "direct_declarator",
+    "identifier",
+    "type_qualifier_list",
+    "parameter_type_list",
+    "parameter_list",
+    "parameter_declaration",
+    "identifier_list",
+};
 
 typedef struct ast_node_t {
   struct ast_node_t *child;
@@ -123,6 +145,7 @@ bool is_type_specifier(token_t token);
 // 6.7.3
 // type_qualifier := const | restrict | volatile
 void parse_type_qualifier(ast_node_t *root);
+bool is_type_qualifier(token_t token);
 
 // 6.7.4
 // function_specifier := inline
@@ -150,6 +173,31 @@ void parse_direct_declarator(ast_node_t *root);
 // pointer := *type_qualifier_list?
 //          | *type_qualifier_list? pointer
 void parse_pointer(ast_node_t *root);
+
+// 6.7.5
+// type_qualifier_list := type_qualifier
+//                      | type_qualifier_list type_qualifier
+void parse_type_qualifier_list(ast_node_t *root);
+
+// 6.7.5
+// parameter_type_list := parameter_list
+//                      | parameter_list, ...
+void parse_parameter_type_list(ast_node_t *root);
+
+// 6.7.5
+// parameter_list := parameter_declaration
+//                 | parameter_list, parameter_declaration
+void parse_parameter_list(ast_node_t *root);
+
+// 6.7.5
+// parameter_declaration := declaration_specifiers declarator
+//                        | declaration_specifiers abstract_declarator?
+void parse_parameter_declaration(ast_node_t *root);
+
+// 6.7.5
+// identifier_list := identifier
+//                  | identifier_list, identifier
+void parse_identifier_list(ast_node_t *root);
 
 // 6.8.2
 // compound_statement := {block_item_list?}
