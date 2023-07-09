@@ -86,6 +86,15 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
     }
     }
 
+    if (c == '=') {
+      if (pos[1] == '=') {
+        add_token(&pos, tokens, Eq, "==", line, column);
+      } else {
+        add_token(&pos, tokens, Assn, "=", line, column);
+      }
+      return pos;
+    }
+
     if (c == '+') {
       if (pos[1] == '+') {
         add_token(&pos, tokens, PlusPlus, "++", line, column);

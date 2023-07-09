@@ -6,49 +6,89 @@
 #include <stdbool.h>
 
 typedef enum {
-  translation_unit,
-  external_declaration,
-  function_defintion,
-  declaration,
-  declaration_specifiers,
-  storage_class_specifier,
-  type_specifier,
-  type_qualifier,
-  function_specifier,
-  declarator,
-  declaration_list,
-  compound_statement,
-  pointer,
-  direct_declarator,
-  identifier,
-  type_qualifier_list,
-  parameter_type_list,
-  parameter_list,
-  parameter_declaration,
-  identifier_list
+  Identifier,
+  PrimaryExpression,
+  PostfixExpression,
+  ArgumentExpressionList,
+  UnaryExpression,
+  CastExpression,
+  MultiplicativeExpression,
+  AdditiveExpression,
+  ShiftExpression,
+  RelationalExpression,
+  EqualityExpression,
+  AndExpression,
+  ExclusiveOrExpression,
+  InclusiveOrExpression,
+  LogicalAndExpression,
+  LogicalOrExpression,
+  ConditionalExpression,
+  AssignmentExpression,
+  Expression,
+  Declaration,
+  DeclarationSpecifiers,
+  StorageClassSpecifier,
+  TypeSpecifier,
+  TypeQualifier,
+  Declarator,
+  DirectDeclarator,
+  Pointer,
+  TypeQualifierList,
+  ParameterTypeList,
+  ParameterList,
+  ParameterDeclaration,
+  IdentifierList,
+  Statement,
+  CompoundStatement,
+  BlockItemList,
+  BlockItem,
+  ExpressionStatement,
+  TranslationUnit,
+  ExternalDeclaration,
+  FunctionDefinition,
 } ast_node_kind_t;
 
 static const char *ast_node_kind_map[] = {
-    "translation_unit",
-    "external_declaration",
-    "function_defintion",
+    "identifier",
+    "primary_expression",
+    "postfix_expression",
+    "argument_expression_list",
+    "unary_expression",
+    "cast_expression",
+    "multiplicative_expression",
+    "additive_expression",
+    "shift_expression",
+    "relational_expression",
+    "equality_expression",
+    "and_expression",
+    "exclusive_or_expression",
+    "inclusive_or_expression",
+    "inclusive_and_expression",
+    "logical_or_expression",
+    "conditional_expression",
+    "assignment_expression",
+    "expression",
     "declaration",
     "declaration_specifiers",
     "storage_class_specifier",
     "type_specifier",
     "type_qualifier",
-    "function_specifier",
     "declarator",
-    "declaration_list",
-    "compound_statement",
-    "pointer",
     "direct_declarator",
-    "identifier",
+    "pointer",
     "type_qualifier_list",
     "parameter_type_list",
     "parameter_list",
     "parameter_declaration",
     "identifier_list",
+    "statement",
+    "compound_statement",
+    "block_item_list",
+    "block_item",
+    "expression_statement",
+    "translation_unit",
+    "external_declaration",
+    "function_defintion",
 };
 
 typedef struct ast_node_t {
@@ -56,6 +96,8 @@ typedef struct ast_node_t {
   struct ast_node_t *next;
   ast_node_kind_t kind;
 } ast_node_t;
+
+bool is_type_name();
 
 // 6.4.2.1
 // identifier := identifier_nondigit
@@ -108,12 +150,116 @@ void parse_argument_expression_list(ast_node_t *root);
 //                   | sizeof(type_name)
 void parse_unary_expression(ast_node_t *root);
 
+// 6.5.4
+// cast_expression := unary_expression
+//                  | (type_name) cast_expression
+void parse_cast_expression(ast_node_t *root);
+
+// 6.5.5
+// multiplicative_expression := cast_expression
+//                            | multiplicative_expression * cast_expression
+//                            | multiplicative_expression % cast_expression
+//                            | multiplicative_expression % cast_expression
+void parse_multiplicative_expression(ast_node_t *root);
+
+// 6.5.6
+// additive_expression := multiplicative_expression
+//                      | additive_expression * multiplicative_expression
+//                      | additive_expression % multiplicative_expression
+void parse_additive_expression(ast_node_t *root);
+
+// 6.5.7
+// shift_expression := additive_expression
+//                   | shift_expression * additive_expression
+//                   | shift_expression % additive_expression
+void parse_shift_expression(ast_node_t *root);
+
+// 6.5.8
+// relational_expression := shift_expression
+//                        | relational_expression < shift_expression
+//                        | relational_expression > shift_expression
+//                        | relational_expression <= shift_expression
+//                        | relational_expression >= shift_expression
+void parse_relational_expression(ast_node_t *root);
+
+// 6.5.9
+// equality_expression := relational_expression
+//                      | equality_expression < relational_expression
+//                      | equality_expression > relational_expression
+void parse_equality_expression(ast_node_t *root);
+
+// 6.5.10
+// and_expression := equality_expression
+//                 | and_expression & equality_expression
+void parse_and_expression(ast_node_t *root);
+
+// 6.5.11
+// exclusive_or_expression := and_expression
+//                          | exclusive_or_expression ^ and_expression
+void parse_exclusive_or_expression(ast_node_t *root);
+
+// 6.5.12
+// inclusive_or_expression := exclusive_or_expression
+//                          | inclusive_or_expression | exclusive_or_expression
+void parse_inclusive_or_expression(ast_node_t *root);
+
+// 6.5.13
+// logical_and_expression := inclusive_or_expression
+//                         | logical_and_expression && inclusive_or_expression
+void parse_logical_and_expression(ast_node_t *root);
+
+// 6.5.14
+// logical_or_expression := logical_and_expression
+//                         | logical_or_expression || logical_and_expression
+void parse_logical_or_expression(ast_node_t *root);
+
+// 6.5.15
+// conditional_expression := logical_or_expression
+//                         | logical_or_expression ? expression :
+//                         conditional_expression
+void parse_conditional_expression(ast_node_t *root);
+
+// 6.5.16
+// assignment_expression := conditional_expression
+//                         | unary_expression = assignment_expression
+//                         | unary_expression *= assignment_expression
+//                         | unary_expression /= assignment_expression
+//                         | unary_expression %= assignment_expression
+//                         | unary_expression += assignment_expression
+//                         | unary_expression -= assignment_expression
+//                         | unary_expression <<= assignment_expression
+//                         | unary_expression >>= assignment_expression
+//                         | unary_expression &= assignment_expression
+//                         | unary_expression ^= assignment_expression
+//                         | unary_expression |= assignment_expression
+void parse_assignment_expression(ast_node_t *root);
+
+// 6.5.17
+// expression := assignment_expression
+//             | expression, assignment_expression
+void parse_expression(ast_node_t *root);
+
+// 6.7
+// declaration := declaration_specifiers init_declarator_list?;
+void parse_declaration(ast_node_t *root);
+
 // 6.7
 // storage_class_specifier declaration_specifiers?
 // type_specifier declaration_specifiers?
 // type_qualifier declaration_specifiers?
 // function_specifier declaration_specifiers?
 void parse_declaration_specifiers(ast_node_t *root);
+bool is_declaration_specifier(token_t token);
+
+// 6.7
+// init_declarator_list := init_declarator
+//                       | init_declarator_list, init_declarator
+void parse_init_declarator_list(ast_node_t *root);
+
+// 6.7
+// init_declarator := declarator
+//                  | declarator = initializer
+void parse_init_declarator(ast_node_t *root);
 
 // 6.7.1
 // storage_class_specifier := typedef
@@ -199,6 +345,15 @@ void parse_parameter_declaration(ast_node_t *root);
 //                  | identifier_list, identifier
 void parse_identifier_list(ast_node_t *root);
 
+// 6.8
+// statement := labeled_statement
+//            | compound_statement
+//            | expression_statement
+//            | selection_statement
+//            | iteration_statement
+//            | jump_statement
+void parse_statement(ast_node_t *root);
+
 // 6.8.2
 // compound_statement := {block_item_list?}
 void parse_compound_statement(ast_node_t *root);
@@ -212,6 +367,10 @@ void parse_block_item_list(ast_node_t *root);
 // block_item := declaration
 //             | statement
 void parse_block_item(ast_node_t *root);
+
+// 6.8.3
+// expression_statement := expression?;
+void parse_expression_statement(ast_node_t *root);
 
 // 6.9
 // translation_unit := external_declaration
@@ -229,9 +388,8 @@ void parse_external_declaration(ast_node_t *root);
 void parse_function_definition(ast_node_t *root);
 
 // 6.9.1
-// declaration_specifiers := storage_class_specifier declaration_specifiers?
-//                         | type_specifier declaration_specifiers?
-//                         | type_qualifier declaration_specifiers?
-//                         | function_specifier declaration_specifiers?
+// declaration_list := declaration
+//                   | declaration_list declaration
+void parse_declaration_list(ast_node_t *root);
 
 #endif
