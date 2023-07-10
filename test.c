@@ -1,3 +1,3 @@
 int add(int x, int y) {
-  x + 1;
+  int z = 1;
 }

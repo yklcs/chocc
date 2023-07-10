@@ -7,6 +7,8 @@
 
 typedef enum {
   Identifier,
+  Constant,
+  StringLiteral,
   PrimaryExpression,
   PostfixExpression,
   ArgumentExpressionList,
@@ -25,8 +27,11 @@ typedef enum {
   ConditionalExpression,
   AssignmentExpression,
   Expression,
+  ConstantExpression,
   Declaration,
   DeclarationSpecifiers,
+  InitDeclaratorList,
+  InitDeclarator,
   StorageClassSpecifier,
   TypeSpecifier,
   TypeQualifier,
@@ -38,6 +43,11 @@ typedef enum {
   ParameterList,
   ParameterDeclaration,
   IdentifierList,
+  Initializer,
+  InitializerList,
+  Designation,
+  DesignatorList,
+  Designator,
   Statement,
   CompoundStatement,
   BlockItemList,
@@ -50,6 +60,8 @@ typedef enum {
 
 static const char *ast_node_kind_map[] = {
     "identifier",
+    "constant",
+    "string_literal",
     "primary_expression",
     "postfix_expression",
     "argument_expression_list",
@@ -68,8 +80,11 @@ static const char *ast_node_kind_map[] = {
     "conditional_expression",
     "assignment_expression",
     "expression",
+    "constant_expression",
     "declaration",
     "declaration_specifiers",
+    "init_declarator_list",
+    "init_declarator",
     "storage_class_specifier",
     "type_specifier",
     "type_qualifier",
@@ -81,6 +96,11 @@ static const char *ast_node_kind_map[] = {
     "parameter_list",
     "parameter_declaration",
     "identifier_list",
+    "initializer",
+    "initializer_list",
+    "designation",
+    "designator_list",
+    "designator",
     "statement",
     "compound_statement",
     "block_item_list",
@@ -88,12 +108,13 @@ static const char *ast_node_kind_map[] = {
     "expression_statement",
     "translation_unit",
     "external_declaration",
-    "function_defintion",
+    "function_definition",
 };
 
 typedef struct ast_node_t {
   struct ast_node_t *child;
   struct ast_node_t *next;
+  int num_children;
   ast_node_kind_t kind;
 } ast_node_t;
 
@@ -239,6 +260,10 @@ void parse_assignment_expression(ast_node_t *root);
 //             | expression, assignment_expression
 void parse_expression(ast_node_t *root);
 
+// 6.6
+// constant_expression := conditional_expression
+void parse_constant_expression(ast_node_t *root);
+
 // 6.7
 // declaration := declaration_specifiers init_declarator_list?;
 void parse_declaration(ast_node_t *root);
@@ -344,6 +369,31 @@ void parse_parameter_declaration(ast_node_t *root);
 // identifier_list := identifier
 //                  | identifier_list, identifier
 void parse_identifier_list(ast_node_t *root);
+
+// 6.7.8
+// initializer := assignment_expression
+//              | {initializer_list}
+//              | {initializer_list,}
+void parse_initializer(ast_node_t *root);
+
+// 6.7.8
+// initializer_list := designation? initializer
+//                   | initializer_list, designation? initializer
+void parse_initializer_list(ast_node_t *root);
+
+// 6.7.8
+// designation := designator_list =
+void parse_designation(ast_node_t *root);
+
+// 6.7.8
+// designator_list := designator
+//                  | designator_list designator
+void parse_designator_list(ast_node_t *root);
+
+// 6.7.9
+// designator := [constant_expression]
+//             | .identifier
+void parse_designator(ast_node_t *root);
 
 // 6.8
 // statement := labeled_statement
