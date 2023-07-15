@@ -1,16 +1,19 @@
 # chocc
 
-A web-oriented C compiler 🍫
+A C compiler from scratch 🍫
 
 ---
 
-The goal is to create a toy C compiler running entirely in the browser from scratch.
-Also my first foray into compilers, how exciting!
+The goal is to write a self hosting C99 compiler in C99.
+Everything is hand written without generators.
+The parser uses recursive descent based on the C99 syntax.
+Tree-walking interpretation and WebAssembly codegen backends are planned.
 
 ## Steps
 
-1. Create a tree-walking C interpreter ← _currently here_
-2. Create a bytecode VM
-3. Create a bytecode C compiler for VM of step 2
-4. Create a C-to-WASM compiler by adapting compiler of step 3
-5. Work on standards compliance, optimization, speed, ecosystem, etc.
+1. Lex C99
+2. Parse C99 ← _currently here_
+3. Implement preprocessor
+4. Generate AST from parse tree
+5. Create a tree-walking interpreter backend
+6. Create a WebAssembly codegen backend
