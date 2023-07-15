@@ -34,7 +34,17 @@ typedef enum {
   InitDeclarator,
   StorageClassSpecifier,
   TypeSpecifier,
+  StructOrUnionSpecifier,
+  StructDeclarationList,
+  StructDeclaration,
+  SpecifierQualifierList,
+  StructDeclaratorList,
+  StructDeclarator,
+  EnumSpecifier,
+  EnumeratorList,
+  Enumerator,
   TypeQualifier,
+  FunctionSpecifier,
   Declarator,
   DirectDeclarator,
   Pointer,
@@ -43,16 +53,24 @@ typedef enum {
   ParameterList,
   ParameterDeclaration,
   IdentifierList,
+  TypeName,
+  AbstractDeclarator,
+  DirectAbstractDeclarator,
+  TypedefName,
   Initializer,
   InitializerList,
   Designation,
   DesignatorList,
   Designator,
   Statement,
+  LabeledStatement,
   CompoundStatement,
   BlockItemList,
   BlockItem,
   ExpressionStatement,
+  SelectionStatement,
+  IterationStatement,
+  JumpStatement,
   TranslationUnit,
   ExternalDeclaration,
   FunctionDefinition,
@@ -87,7 +105,17 @@ static const char *ast_node_kind_map[] = {
     "init_declarator",
     "storage_class_specifier",
     "type_specifier",
+    "struct_or_union_specifier",
+    "struct_declaration_list",
+    "struct_declaration",
+    "specifier_qualifier_list",
+    "struct_declarator_list",
+    "struct_declarator",
+    "enum_specifier",
+    "enumerator_list",
+    "enumerator",
     "type_qualifier",
+    "function_specifier",
     "declarator",
     "direct_declarator",
     "pointer",
@@ -96,16 +124,24 @@ static const char *ast_node_kind_map[] = {
     "parameter_list",
     "parameter_declaration",
     "identifier_list",
+    "type_name",
+    "abstract_declarator",
+    "direct_abstract_declarator",
+    "typedef_name",
     "initializer",
     "initializer_list",
     "designation",
     "designator_list",
     "designator",
     "statement",
+    "labeled_statement",
     "compound_statement",
     "block_item_list",
     "block_item",
     "expression_statement",
+    "selection_statement",
+    "iteration_statement",
+    "jump_statement",
     "translation_unit",
     "external_declaration",
     "function_definition",
@@ -313,6 +349,53 @@ bool is_storage_class_specifier(token_t token);
 void parse_type_specifier(ast_node_t *root);
 bool is_type_specifier(token_t token);
 
+// 6.7.2.1
+// struct_or_union_specifier := struct identifier? {struct_declaration_list}
+//                            | struct identifier
+//                            | union identifier? {struct_declaration_list}
+//                            | union identifier
+void parse_struct_or_union_specifier(ast_node_t *root);
+
+// 6.7.2.1
+// struct_declaration_list := struct_declaration
+//                          | struct_declaration_list struct_declaration
+void parse_struct_declaration_list(ast_node_t *root);
+
+// 6.7.2.1
+// struct_declaration := specifier_qualifier_list struct_declarator_list;
+void parse_struct_declaration(ast_node_t *root);
+
+// 6.7.2.1
+// specifier_qualifier_list := type_specifier specifier_qualifier_list?
+//                           | type_qualifier specifier_qualifier_list?
+void parse_specifier_qualifier_list(ast_node_t *root);
+
+// 6.7.2.1
+// struct_declarator_list := struct_declarator
+//                         | struct_declarator_list, struct_declarator
+void parse_struct_declarator_list(ast_node_t *root);
+
+// 6.7.2.1
+// struct_declarator := declarator
+//                    | declarator? : constant_expression
+void parse_struct_declarator(ast_node_t *root);
+
+// 6.7.2.2
+// enum_specifier := enum identifier? {enumerator_list}
+//                 | enum identifier? {enumerator_list,}
+//                 | enum identifier
+void parse_enum_specifier(ast_node_t *root);
+
+// 6.7.2.2
+// enumerator_list := enumerator
+//                  | enumerator_list, enumerator
+void parse_enumerator_list(ast_node_t *root);
+
+// 6.7.2.2
+// enumerator := enumeration_constant
+//             | enumeration_constant = constant_expression
+void parse_enumerator(ast_node_t *root);
+
 // 6.7.3
 // type_qualifier := const | restrict | volatile
 void parse_type_qualifier(ast_node_t *root);
@@ -370,6 +453,34 @@ void parse_parameter_declaration(ast_node_t *root);
 //                  | identifier_list, identifier
 void parse_identifier_list(ast_node_t *root);
 
+// 6.7.6
+// type_name := specifier_qualifier_list abstract_declarator?
+void parse_type_name(ast_node_t *root);
+
+// 6.7.6
+// abstract_declarator := pointer
+//                      | pointer? direct_abstract_declarator
+void parse_abstract_declarator(ast_node_t *root);
+
+// 6.7.6
+// direct_abstract_declarator := (abstract_declarator)
+//                             | direct_abstract_declarator?
+//                                [type_qualifier_list? assignment_expression?]
+//                             | direct_abstract_declarator?
+//                                [static type_qualifier_list?
+//                                  assignment_expression]
+//                             | direct_abstract_declarator?
+//                                [type_qualifier_list static
+//                                  assignment_expression]
+//                             | direct_abstract_declarator? [*]
+//                             | direct_abstract_declarator?
+//                             (parameter_type_list?)
+void parse_direct_abstract_declarator(ast_node_t *root);
+
+// 6.7.7
+// typedef_name := identifier
+void parse_typedef_name(ast_node_t *root);
+
 // 6.7.8
 // initializer := assignment_expression
 //              | {initializer_list}
@@ -404,6 +515,12 @@ void parse_designator(ast_node_t *root);
 //            | jump_statement
 void parse_statement(ast_node_t *root);
 
+// 6.8.1
+// labeled_statement := identifier: statement
+//                    | case constant_expression: statement
+//                    | default: statement
+void parse_labeled_statement(ast_node_t *root);
+
 // 6.8.2
 // compound_statement := {block_item_list?}
 void parse_compound_statement(ast_node_t *root);
@@ -421,6 +538,26 @@ void parse_block_item(ast_node_t *root);
 // 6.8.3
 // expression_statement := expression?;
 void parse_expression_statement(ast_node_t *root);
+
+// 6.8.4
+// selection_statement := if (expression) statement
+//                      | if (expression) statement else statement
+//                      | switch (expression) statement
+void parse_selection_statement(ast_node_t *root);
+
+// 6.8.5
+// iteration_statement := while (expression) statement
+//                      | do statement while (expression);
+//                      | for (expression?; expression?; expression?) statement
+//                      | for (declaration expression?; expression?) statement
+void parse_iteration_statement(ast_node_t *root);
+
+// 6.8.6
+// jump_statement := goto identifier;
+//                 | continue;
+//                 | break;
+//                 | return expression?;
+void parse_jump_statement(ast_node_t *root);
 
 // 6.9
 // translation_unit := external_declaration

@@ -102,6 +102,10 @@ void parse_primary_expression(ast_node_t *root) {
     parse_identifier(node);
     break;
   }
+  default: {
+    throw();
+    break;
+  }
   }
   append_node(root, node);
 }
@@ -112,10 +116,10 @@ void parse_postfix_expression(ast_node_t *root) {
 
   if (token_ptr->kind == LParen) {
     match(LParen);
-    // TODO: parse type_name
+    parse_type_name(node);
     match(RParen);
     match(LBrace);
-    // TODO: parse initializer_list
+    parse_initializer_list(node);
     if (token_ptr->kind == Comma) {
       match(Comma);
     }
@@ -173,7 +177,16 @@ void parse_postfix_expression(ast_node_t *root) {
 }
 
 void parse_argument_expression_list(ast_node_t *root) {
-  // TODO
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = ArgumentExpressionList;
+
+  parse_assignment_expression(node);
+  if (token_ptr->kind == Comma) {
+    match(Comma);
+    parse_argument_expression_list(node);
+  }
+
+  append_node(root, node);
 }
 
 void parse_unary_expression(ast_node_t *root) {
@@ -194,7 +207,7 @@ void parse_unary_expression(ast_node_t *root) {
 
     if (token_ptr->kind == LParen) {
       match(LParen);
-      // TODO: parse type_name
+      parse_type_name(node);
       match(RParen);
     }
     if (token_ptr->kind == RBrace) { // compound literal, reparse
@@ -216,7 +229,7 @@ void parse_cast_expression(ast_node_t *root) {
   token_t *lparen_begin = token_ptr;
   if (token_ptr->kind == LParen) {
     match(LParen);
-    // TODO: parse type_name
+    parse_type_name(node);
     match(RParen);
     if (token_ptr->kind == LBrace) { // compound literal, reparse
       node = calloc(1, sizeof(ast_node_t));
@@ -465,13 +478,19 @@ void parse_declaration_specifiers(ast_node_t *root) {
       parse_storage_class_specifier(node);
     } else if (is_type_specifier(*token_ptr)) {
       parse_type_specifier(node);
+    } else if (is_type_qualifier(*token_ptr)) {
+      parse_type_qualifier(node);
+    } else if (token_ptr->kind == Inline) {
+      parse_function_specifier(node);
+    } else {
+      throw();
     }
   }
 }
 
 bool is_declaration_specifier(token_t token) {
   if (is_storage_class_specifier(token) || is_type_specifier(token) ||
-      is_type_qualifier(token)) {
+      is_type_qualifier(token) || token.kind == Inline) {
     return true;
   } else {
     return false;
@@ -556,16 +575,169 @@ bool is_type_specifier(token_t token) {
   }
 }
 
+void parse_struct_or_union_specifier(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = StructOrUnionSpecifier;
+
+  if (token_ptr->kind == Struct || token_ptr->kind == Union) {
+    match(token_ptr->kind);
+    if (token_ptr->kind == LBrace) {
+      match(LBrace);
+      parse_struct_declaration_list(node);
+      match(RBrace);
+    } else {
+      parse_identifier(node);
+      if (token_ptr->kind == LBrace) {
+        match(LBrace);
+        parse_struct_declaration_list(node);
+        match(RBrace);
+      }
+    }
+  } else {
+    throw();
+  }
+  append_node(root, node);
+}
+
+void parse_struct_declaration_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = StructDeclarationList;
+
+  parse_struct_declaration(node);
+  if (token_ptr->kind != RBrace) {
+    parse_struct_declaration_list(node);
+  }
+
+  append_node(root, node);
+}
+
+void parse_struct_declaration(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = TypeQualifier;
+
+  parse_specifier_qualifier_list(node);
+  parse_struct_declarator_list(node);
+  match(Semi);
+
+  append_node(root, node);
+}
+
+void parse_specifier_qualifier_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = TypeQualifier;
+
+  if (is_type_specifier(*token_ptr)) {
+    parse_type_specifier(node);
+  } else if (is_type_qualifier(*token_ptr)) {
+    parse_type_qualifier(node);
+  } else {
+    throw();
+  }
+  for (; is_type_specifier(*token_ptr) || is_type_qualifier(*token_ptr);) {
+    if (is_type_specifier(*token_ptr)) {
+      parse_type_specifier(node);
+    } else if (is_type_qualifier(*token_ptr)) {
+      parse_type_qualifier(node);
+    }
+  }
+
+  append_node(root, node);
+}
+
+void parse_struct_declarator_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = StructDeclaratorList;
+
+  parse_struct_declarator(node);
+  if (token_ptr->kind == Comma) {
+    match(Comma);
+    parse_struct_declarator_list(node);
+  }
+
+  append_node(root, node);
+}
+
+void parse_struct_declarator(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = StructDeclarator;
+
+  if (token_ptr->kind == Colon) {
+    match(Colon);
+    parse_constant_expression(node);
+  } else {
+    parse_declarator(node);
+    if (token_ptr->kind == Colon) {
+      match(Colon);
+      parse_constant_expression(node);
+    }
+  }
+
+  append_node(root, node);
+}
+
+void parse_enum_specifier(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = EnumSpecifier;
+
+  match(Enum);
+  if (token_ptr->kind == LBrace) {
+    match(LBrace);
+    parse_enumerator_list(node);
+    if (token_ptr->kind == Comma) {
+      match(Comma);
+    }
+    match(RBrace);
+  } else {
+    parse_identifier(node);
+    if (token_ptr->kind == LBrace) {
+      match(LBrace);
+      parse_enumerator_list(node);
+      if (token_ptr->kind == Comma) {
+        match(Comma);
+      }
+      match(RBrace);
+    }
+  }
+
+  append_node(root, node);
+}
+
+void parse_enumerator_list(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = EnumeratorList;
+
+  parse_enumerator(node);
+  if (token_ptr->kind == Comma) {
+    match(Comma);
+    parse_enumerator_list(node);
+  }
+
+  append_node(root, node);
+}
+
+void parse_enumerator(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = Enumerator;
+
+  parse_identifier(node);
+  if (token_ptr->kind == Assn) {
+    match(Assn);
+    parse_constant_expression(node);
+  }
+
+  append_node(root, node);
+}
+
 void parse_type_qualifier(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = TypeQualifier;
 
   if (is_type_qualifier(*token_ptr)) {
     match(token_ptr->kind);
-    append_node(root, node);
   } else {
     throw();
   }
+  append_node(root, node);
 }
 
 bool is_type_qualifier(token_t token) {
@@ -578,6 +750,13 @@ bool is_type_qualifier(token_t token) {
     return false;
     ;
   }
+}
+
+void parse_function_specifier(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = FunctionSpecifier;
+  match(Inline);
+  append_node(root, node);
 }
 
 void parse_declarator(ast_node_t *root) {
@@ -605,13 +784,39 @@ void parse_direct_declarator(ast_node_t *root) {
   }
 
   for (; token_ptr->kind == LSquare || token_ptr->kind == LParen;) {
-    // parse_direct_declarator(node);
     if (token_ptr->kind == LSquare) {
       match(LSquare);
+
+      if (is_type_qualifier(*token_ptr)) {
+        parse_type_qualifier_list(node);
+        if (token_ptr->kind == Static) {
+          match(Static);
+          parse_assignment_expression(node);
+        } else if (token_ptr->kind == Star) {
+          match(Star);
+        } else if (token_ptr->kind != RSquare) {
+          parse_assignment_expression(node);
+        }
+        match(RSquare);
+      } else if (token_ptr->kind == Static) {
+        match(Static);
+        if (is_type_qualifier(*token_ptr)) {
+          parse_type_qualifier_list(node);
+        }
+        parse_assignment_expression(node);
+      } else if (token_ptr->kind == Star) {
+        match(Star);
+      } else if (token_ptr->kind != RSquare) {
+        parse_assignment_expression(node);
+      }
       match(RSquare);
     } else if (token_ptr->kind == LParen) {
       match(LParen);
-      parse_parameter_type_list(node);
+      if (is_declaration_specifier(*token_ptr)) {
+        parse_parameter_type_list(node);
+      } else if (token_ptr->kind != RParen) {
+        parse_identifier_list(node);
+      }
       match(RParen);
     }
   }
@@ -693,6 +898,82 @@ void parse_identifier_list(ast_node_t *root) {
   append_node(root, node);
 }
 
+void parse_type_name(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = TypeName;
+
+  parse_specifier_qualifier_list(node);
+  if (token_ptr->kind == Star || token_ptr->kind == LParen ||
+      token_ptr->kind == LSquare) {
+    parse_abstract_declarator(node);
+  }
+
+  append_node(root, node);
+}
+
+void parse_abstract_declarator(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = AbstractDeclarator;
+
+  if (token_ptr->kind == Star) {
+    parse_pointer(node);
+  }
+  if (token_ptr->kind == LParen || token_ptr->kind == LSquare) {
+    parse_direct_abstract_declarator(node);
+  }
+
+  append_node(root, node);
+}
+
+void parse_direct_abstract_declarator(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = DirectAbstractDeclarator;
+
+  if (token_ptr->kind == LParen) {
+    match(LParen);
+    if (is_declaration_specifier(*token_ptr)) {
+      parse_parameter_type_list(node);
+    } else {
+      parse_abstract_declarator(node);
+    }
+    match(RParen);
+  } else if (token_ptr->kind == LSquare) {
+    match(LSquare);
+    if (token_ptr->kind == Star) {
+      match(Star);
+    } else if (token_ptr->kind == Static) {
+      match(Static);
+      if (is_type_qualifier(*token_ptr)) {
+        parse_type_qualifier_list(node);
+      }
+      parse_assignment_expression(node);
+    } else if (is_type_qualifier(*token_ptr)) {
+      parse_type_qualifier_list(node);
+      if (token_ptr->kind == Static) {
+        match(Static);
+        parse_assignment_expression(node);
+      } else if (token_ptr->kind != RSquare) {
+        parse_assignment_expression(node);
+      }
+    } else if (token_ptr->kind != RSquare) {
+      parse_assignment_expression(node);
+    }
+
+    match(RSquare);
+  }
+
+  append_node(root, node);
+}
+
+void parse_typedef_name(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = TypedefName;
+
+  parse_identifier(node);
+
+  append_node(root, node);
+}
+
 void parse_initializer(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = Initializer;
@@ -764,11 +1045,48 @@ void parse_designator(ast_node_t *root) {
 void parse_statement(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = Statement;
-  if (token_ptr->kind == LBrace) {
+
+  if (token_ptr->kind == Case || token_ptr->kind == Default) {
+    parse_labeled_statement(node);
+  } else if (token_ptr->kind == LBrace) {
     parse_compound_statement(node);
+  } else if (token_ptr->kind == If || token_ptr->kind == Switch) {
+    parse_selection_statement(node);
+  } else if (token_ptr->kind == While || token_ptr->kind == Do ||
+             token_ptr->kind == For) {
+    parse_iteration_statement(node);
+  } else if (token_ptr->kind == Goto || token_ptr->kind == Continue ||
+             token_ptr->kind == Break || token_ptr->kind == Return) {
+    parse_jump_statement(node);
   } else {
     parse_expression_statement(node);
   }
+  append_node(root, node);
+}
+
+void parse_labeled_statement(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = LabeledStatement;
+
+  switch (token_ptr->kind) {
+  case Case: {
+    match(Case);
+    parse_constant_expression(node);
+    match(Colon);
+    break;
+  }
+  case Default: {
+    match(Default);
+    match(Colon);
+    break;
+  }
+  default: {
+    parse_identifier(node);
+    match(Colon);
+  }
+  }
+  parse_statement(node);
+
   append_node(root, node);
 }
 
@@ -812,6 +1130,126 @@ void parse_expression_statement(ast_node_t *root) {
     parse_expression(node);
     match(Semi);
   }
+  append_node(root, node);
+}
+
+void parse_selection_statement(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = SelectionStatement;
+
+  switch (token_ptr->kind) {
+  case If: {
+    match(If);
+    match(LParen);
+    parse_expression(node);
+    match(RParen);
+    parse_statement(node);
+    if (token_ptr->kind == Else) {
+      match(Else);
+      parse_statement(node);
+    }
+    break;
+  }
+  case Switch: {
+    match(Switch);
+    match(LParen);
+    parse_expression(node);
+    match(RParen);
+    parse_statement(node);
+    break;
+  }
+  default: {
+    throw();
+  }
+  }
+
+  append_node(root, node);
+}
+
+void parse_iteration_statement(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = IterationStatement;
+
+  switch (token_ptr->kind) {
+  case While: {
+    match(While);
+    match(LParen);
+    parse_expression(node);
+    match(RParen);
+    parse_statement(node);
+    break;
+  }
+  case Do: {
+    match(Do);
+    parse_statement(node);
+    match(While);
+    match(LParen);
+    parse_expression(node);
+    match(RParen);
+    match(Semi);
+    break;
+  }
+  case For: {
+    match(For);
+    match(LParen);
+    if (is_declaration_specifier(*token_ptr)) {
+      parse_declaration(node);
+    } else if (token_ptr->kind != Semi) {
+      parse_expression(node);
+      match(Semi);
+    } else {
+      match(Semi);
+    }
+    if (token_ptr->kind != Semi) {
+      parse_expression(node);
+      match(Semi);
+    } else {
+      match(Semi);
+    }
+    if (token_ptr->kind != RParen) {
+      parse_expression(node);
+    }
+
+    match(RParen);
+    parse_statement(node);
+    break;
+  }
+
+  default: {
+    throw();
+  }
+  }
+
+  append_node(root, node);
+}
+
+void parse_jump_statement(ast_node_t *root) {
+  ast_node_t *node = calloc(1, sizeof(ast_node_t));
+  node->kind = JumpStatement;
+
+  switch (token_ptr->kind) {
+  case Goto: {
+    match(Goto);
+    parse_identifier(node);
+    break;
+  }
+  case Continue:
+  case Break: {
+    match(token_ptr->kind);
+    break;
+  }
+  case Return: {
+    match(Return);
+    if (token_ptr->kind != Semi) {
+      parse_expression(node);
+    }
+    break;
+  }
+  default: {
+    throw();
+  }
+  }
+  match(Semi);
   append_node(root, node);
 }
 
