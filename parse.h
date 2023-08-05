@@ -147,14 +147,27 @@ static const char *ast_node_kind_map[] = {
     "function_definition",
 };
 
+typedef union ast_node_data_t {
+  struct {
+    char *name;
+  } Identifier;
+  struct {
+    char *type;
+  } TypeSpecifier;
+  struct {
+    char text[1024];
+  } Expression;
+} ast_node_data_t;
+
 typedef struct ast_node_t {
   struct ast_node_t *child;
   struct ast_node_t *next;
   int num_children;
   ast_node_kind_t kind;
+  ast_node_data_t data;
 } ast_node_t;
 
-bool is_type_name();
+bool is_type_name(token_t *token);
 
 // 6.4.2.1
 // identifier := identifier_nondigit

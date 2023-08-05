@@ -6,16 +6,15 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 ast_node_t *ast;
 token_t *token_ptr;
 
 void append_node(ast_node_t *parent, ast_node_t *child) {
-  if (child == NULL) {
+  if (parent == NULL || child == NULL) {
     return;
   }
-  printf("%s -> %s\n", ast_node_kind_map[parent->kind],
-         ast_node_kind_map[child->kind]);
 
   if (parent->child) {
     ast_node_t *cur;
@@ -28,9 +27,24 @@ void append_node(ast_node_t *parent, ast_node_t *child) {
   parent->num_children++;
 }
 
+char *stringify_data(ast_node_data_t data, ast_node_kind_t kind) {
+  switch (kind) {
+  case Identifier:
+    return data.Identifier.name;
+  case TypeSpecifier:
+    return data.TypeSpecifier.type;
+  case Expression:
+    return data.Expression.text;
+  case AssignmentExpression:
+    return data.Expression.text;
+  default:
+    return "";
+  }
+}
+
 void _print_ast(ast_node_t *root, int depth) {
-  // if (root->num_children != 1)
-  printf("%s %d\n", ast_node_kind_map[root->kind], root->num_children);
+  printf("%s %s\n", ast_node_kind_map[root->kind],
+         stringify_data(root->data, root->kind));
   for (ast_node_t *sib = root->child; sib; sib = sib->next) {
     for (int i = 0; i < depth; i++) {
       printf("  ");
@@ -62,6 +76,7 @@ void match(token_kind_t kind) {
 void parse_identifier(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = Identifier;
+  node->data.Identifier.name = token_ptr->text;
   match(Id);
   append_node(root, node);
 }
@@ -83,6 +98,7 @@ void parse_string_literal(ast_node_t *root) {
 void parse_primary_expression(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = PrimaryExpression;
+
   switch (token_ptr->kind) {
   case LParen: {
     match(LParen);
@@ -114,7 +130,7 @@ void parse_postfix_expression(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = PostfixExpression;
 
-  if (token_ptr->kind == LParen) {
+  if (token_ptr->kind == LParen && is_type_name(token_ptr)) {
     match(LParen);
     parse_type_name(node);
     match(RParen);
@@ -173,6 +189,9 @@ void parse_postfix_expression(ast_node_t *root) {
     append_node(node, node_postfix);
   }
 
+  if (node->num_children == 1) {
+    node = node->child;
+  }
   append_node(root, node);
 }
 
@@ -218,7 +237,11 @@ void parse_unary_expression(ast_node_t *root) {
     }
   } else {
     parse_postfix_expression(node);
+    if (node->num_children == 1) {
+      node = node->child;
+    }
   }
+
   append_node(root, node);
 }
 
@@ -227,7 +250,7 @@ void parse_cast_expression(ast_node_t *root) {
   node->kind = CastExpression;
 
   token_t *lparen_begin = token_ptr;
-  if (token_ptr->kind == LParen) {
+  if (token_ptr->kind == LParen && is_type_name(token_ptr)) {
     match(LParen);
     parse_type_name(node);
     match(RParen);
@@ -242,6 +265,11 @@ void parse_cast_expression(ast_node_t *root) {
   } else {
     parse_unary_expression(node);
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -257,6 +285,11 @@ void parse_multiplicative_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -271,6 +304,11 @@ void parse_additive_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -285,6 +323,11 @@ void parse_shift_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -300,6 +343,11 @@ void parse_relational_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -314,6 +362,11 @@ void parse_equality_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -329,6 +382,11 @@ void parse_and_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -344,6 +402,11 @@ void parse_exclusive_or_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -359,6 +422,11 @@ void parse_inclusive_or_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -375,6 +443,11 @@ void parse_logical_and_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -391,6 +464,11 @@ void parse_logical_or_expression(ast_node_t *root) {
       break;
     }
   }
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -407,6 +485,10 @@ void parse_conditional_expression(ast_node_t *root) {
     parse_conditional_expression(node);
   }
 
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
@@ -414,8 +496,10 @@ void parse_assignment_expression(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = AssignmentExpression;
 
-  token_t *assignment_begin = token_ptr;
+  token_t *begin, *end;
+  begin = token_ptr;
 
+  token_t *assignment_begin = token_ptr;
   parse_conditional_expression(node);
 
   if (token_ptr->kind == Assn || token_ptr->kind == StarAssn ||
@@ -433,13 +517,25 @@ void parse_assignment_expression(ast_node_t *root) {
     parse_assignment_expression(node);
   }
 
+  end = token_ptr;
+  for (token_t *cur = begin; cur < end; cur++) {
+    strcat(node->data.Expression.text, cur->text);
+  }
+  // node->child = NULL;
+
+  if (node->num_children == 1) {
+    node = node->child;
+  }
+
   append_node(root, node);
 }
 
 void parse_expression(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = Expression;
+  token_t *begin, *end;
 
+  begin = token_ptr;
   for (;;) {
     parse_assignment_expression(node);
     if (token_ptr->kind == Comma) {
@@ -448,6 +544,17 @@ void parse_expression(ast_node_t *root) {
       break;
     }
   }
+  end = token_ptr;
+
+  for (token_t *cur = begin; cur < end; cur++) {
+    strcat(node->data.Expression.text, cur->text);
+  }
+
+  // if (node->num_children == 1) {
+  // node = node->child;
+  // }
+
+  // node->child = NULL;
   append_node(root, node);
 }
 
@@ -549,6 +656,7 @@ void parse_type_specifier(ast_node_t *root) {
   node->kind = TypeSpecifier;
 
   if (is_type_specifier(*token_ptr)) {
+    node->data.TypeSpecifier.type = token_ptr->text;
     match(token_ptr->kind);
     append_node(root, node);
   } else {
@@ -570,6 +678,8 @@ bool is_type_specifier(token_t token) {
   case Bool:
   case Complex:
     return true;
+  // case Id:
+  // return true;
   default:
     return false;
   }
@@ -896,6 +1006,11 @@ void parse_identifier_list(ast_node_t *root) {
     parse_identifier(node);
   }
   append_node(root, node);
+}
+
+bool is_type_name(token_t *token) {
+  return is_type_specifier(*token) || token->kind == Const ||
+         token->kind == Restrict || token->kind == Volatile;
 }
 
 void parse_type_name(ast_node_t *root) {
@@ -1259,22 +1374,36 @@ void parse_translation_unit(token_t *tokens) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = TranslationUnit;
   ast = node;
-  parse_external_declaration(node);
+  for (; token_ptr->kind != Eof;) {
+    parse_external_declaration(node);
+  }
 }
 
 void parse_external_declaration(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = ExternalDeclaration;
+
+  token_t *begin = token_ptr;
+  for (; is_declaration_specifier(*token_ptr); token_ptr++) {
+  }
+  parse_declarator(NULL);
+  if (token_ptr->kind == LBrace) {
+    token_ptr = begin;
+    parse_function_definition(node);
+  } else {
+    token_ptr = begin;
+    parse_declaration(node);
+  }
+
   append_node(root, node);
-  parse_function_definition(node);
 }
 
 void parse_function_definition(ast_node_t *root) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = FunctionDefinition;
-  append_node(root, node);
   parse_declaration_specifiers(node);
   parse_declarator(node);
-  // Don't support K&R style function declarations
+  // TODO: support K&R style function declarations
   parse_compound_statement(node);
+  append_node(root, node);
 }
