@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-pt_node_t *ast;
+pt_node_t *pt;
 token_t *token_ptr;
 
 void append_node(pt_node_t *parent, pt_node_t *child) {
@@ -1350,7 +1350,7 @@ void parse_translation_unit(token_t *tokens) {
 
   pt_node_t *node = calloc(1, sizeof(pt_node_t));
   node->kind = TranslationUnit;
-  ast = node;
+  pt = node;
   for (; token_ptr->kind != Eof;) {
     parse_external_declaration(node);
   }

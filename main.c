@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
   tokens.data_end = NULL;
 
   parse_translation_unit(tokens.data);
-  print_ast(ast);
+  print_pt(pt);
 
   return 0;
 }
