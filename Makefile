@@ -1,8 +1,8 @@
 CC 							= clang
-CCFLAGS 				= -std=c99
-CCFLAGS_DEBUG 	= -g3 -Wall -fsanitize=address
+CCFLAGS 				= -std=c90 -Wall -Wextra -Wpedantic -Werror
+CCFLAGS_DEBUG 	= -g3 -fsanitize=address,undefined
 OUT 						= chocc
-SOURCES					= main.c lex.c io.c
+SOURCES					= main.c parse.c token.c io.c
 
 .PHONY: all debug build clean run
 

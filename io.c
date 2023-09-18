@@ -5,9 +5,10 @@
 
 void load_file(char *fname, char **fcontent) {
   FILE *file = fopen(fname, "rb");
-  fseek(file, 0, SEEK_END);
+  long fsize;
 
-  long fsize = ftell(file);
+  fseek(file, 0, SEEK_END);
+  fsize = ftell(file);
   fseek(file, 0, SEEK_SET);
 
   *fcontent = calloc(fsize + 1, sizeof(char));

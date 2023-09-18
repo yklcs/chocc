@@ -1,31 +1,46 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "dynarrsaur.h"
-#include "lex.h"
+#include "token.h"
 
 void skip(char **pos, unsigned int *column, int n) {
   *pos += n;
   *column += n;
 }
 
-void add_token(char **pos, token_dynarr_t *tokens, token_kind_t token_kind,
+void add_token(char **pos, tokens_t *tokens, token_kind_t token_kind,
                const char *token_text, unsigned int *token_line,
                unsigned int *token_column) {
-  token_t token = {
-      .kind = token_kind, .column = *token_column, .line = *token_line};
-  strcpy(token.text, token_text);
-  dynarr_push(tokens, token);
+  token_t token = {0};
+  int len;
 
-  int len = strlen(token_text);
+  token.kind = token_kind;
+  token.column = *token_column;
+  token.line = *token_line;
+
+  strcpy(token.text, token_text);
+
+  if (tokens->cap == 0) {
+    tokens->cap = 128;
+    tokens->tokens = calloc(tokens->cap, sizeof(token_t));
+  }
+  if (tokens->cap <= tokens->len) {
+    tokens->cap *= 2;
+    tokens->tokens = realloc(tokens->tokens, sizeof(token_t) * tokens->cap);
+  }
+  tokens->tokens[tokens->len++] = token;
+
+  len = strlen(token_text);
   skip(pos, token_column, len);
 }
 
-char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
+char *next_token(char *pos, tokens_t *tokens, unsigned int *line,
                  unsigned int *column) {
-  for (char c = *pos;; c = *pos) {
+  char c;
+  for (c = *pos;; c = *pos) {
     switch (c) {
     case '\n': {
       *column = 1;
@@ -45,11 +60,11 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       return pos;
     }
     case '[': {
-      add_token(&pos, tokens, LSquare, "[", line, column);
+      add_token(&pos, tokens, LBrack, "[", line, column);
       return pos;
     }
     case ']': {
-      add_token(&pos, tokens, RSquare, "]", line, column);
+      add_token(&pos, tokens, RBrack, "]", line, column);
       return pos;
     }
     case '(': {
@@ -143,7 +158,7 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
       } else {
         add_token(&pos, tokens, Slash, "/", line, column);
       }
-      // TODO: comments should be parsed somewhere here
+      /* TODO: comments should be parsed somewhere here */
       return pos;
     }
 
@@ -242,8 +257,8 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
 
     if ('0' <= c && c <= '9') {
       char text[32] = {0};
-
       int i = 0;
+
       for (; ('0' <= c && c <= '9'); c = pos[++i]) {
         text[i] = c;
       }
@@ -254,18 +269,19 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
 
     if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
       char text[32] = {0};
-
       int i = 0;
+      int j = 0;
+
       for (; c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
              ('0' <= c && c <= '9');
            c = pos[++i]) {
         text[i] = c;
       }
 
-      // check if keyword
-      for (int i = 0; i < 37; i++) {
-        if (strcmp(keywords[i], text) == 0) {
-          add_token(&pos, tokens, 48 + i, keywords[i], line, column);
+      /* check if keyword */
+      for (j = 0; j < KEYWORDS; j++) {
+        if (strcmp(keywords[j], text) == 0) {
+          add_token(&pos, tokens, 48 + j, keywords[j], line, column);
           return pos;
         }
       }
@@ -278,9 +294,8 @@ char *next_token(char *pos, token_dynarr_t *tokens, unsigned int *line,
   }
 }
 
-token_dynarr_t lex(char *src) {
-  token_dynarr_t tokens = dynarr_init();
-  dynarr_allocate(&tokens, 16);
+tokens_t lex(char *src) {
+  tokens_t tokens = {0};
 
   char *pos = src;
   unsigned int column = 1;

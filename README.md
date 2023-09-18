@@ -9,6 +9,15 @@ Everything is hand written without generators.
 The parser uses recursive descent based on the C99 syntax.
 Tree-walking interpretation and WebAssembly codegen backends are planned.
 
+## Lexer
+
+## C99 standard compliance
+
+C features with currently no plans for _initial_ support:
+
+- VLAs
+- Bit fields
+
 ## Steps
 
 1. Lex C99

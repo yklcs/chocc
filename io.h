@@ -1,3 +1,5 @@
+/* clazy:skip  */
+
 #ifndef CHOCC_IO_H
 #define CHOCC_IO_H
 #pragma once
