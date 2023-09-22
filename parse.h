@@ -25,22 +25,6 @@ void advance(parser_t *parser);
 void set_pos(parser_t *parser, int pos);
 
 /*
- * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
- * Each item corresponds to a ast_* struct.
- */
-typedef enum ast_node_kind_t {
-  Type,
-  Ident,
-  Lit,
-  FnDefn,
-  DeclSpecs,
-  Decltor,
-  Decl,
-  BlockStmt,
-  Tok
-} ast_node_kind_t;
-
-/*
  * Type
  *
  * Types represent a C type.
@@ -85,7 +69,7 @@ typedef struct numeric_type {
   bool is_long;
 } numeric_type;
 
-typedef enum type_kind { NumericT, PtrT, ArrT, FnT, StructN } type_kind;
+typedef enum type_kind { NumericT, PtrT, ArrT, FnT, VoidT, StructT } type_kind;
 
 typedef struct type {
   char *modifiers;
@@ -102,18 +86,42 @@ typedef struct type {
 
   /* fn */
   struct type *fn_return_ty;
-  struct ast_decl *fn_param_decls;
+  struct ast_node_t *fn_param_decls;
   int fn_param_decls_len;
   int fn_param_decls_cap;
 
   /* struct */
-  struct ast_decl *struct_decls;
+  struct ast_node_t *struct_decls;
   int struct_decls_len;
   int struct_decls_cap;
 } type;
 
+void print_type(type *);
+
+/*
+ * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
+ * Each item corresponds to a ast_* struct.
+ */
+typedef enum ast_node_kind_t {
+  Ident,
+  Lit,
+  FnDefn,
+  DeclSpecs,
+  Decltor,
+  Decl,
+  BlockStmt,
+  Tok
+} ast_node_kind_t;
+
+extern const char *ast_node_kind_map[];
+
 struct ast_node_t;
-type *parse_type(struct ast_node_t *decl_specs, struct ast_node_t *decltor);
+
+/*
+ * decl consumes DeclSpecs and Decltor into a parsed declaration
+ */
+struct ast_decl *decl(struct ast_node_t *decl_specs,
+                      struct ast_node_t *decltor);
 
 /*
  * Ident(ifier)
@@ -125,9 +133,7 @@ type *parse_type(struct ast_node_t *decl_specs, struct ast_node_t *decltor);
  * identifier := [a-zA-Z_][a-zA-Z0-9_]+
  */
 
-typedef struct ast_ident {
-  char *name;
-} ast_ident;
+typedef char *ast_ident;
 
 struct ast_node_t *parse_ident(parser_t *);
 
@@ -158,9 +164,8 @@ typedef struct ast_lit {
  */
 
 typedef struct ast_fn_defn {
-  struct ast_node_t *decl_specs; /* ast_decl_specs */
-  struct ast_node_t *decltor;    /* ast_decltor */
-  struct ast_node_t *body;       /* block_stmt */
+  struct ast_decl *decl;
+  struct ast_node_t *body; /* block_stmt */
 } ast_fn_defn;
 
 struct ast_node_t *parse_fn_defn(parser_t *);
@@ -220,11 +225,6 @@ typedef enum ast_decltor_kind_t {
   GroupDecltor, /* (decltor) */
   AbstDecltor   /* abstract */
 } ast_decltor_kind_t;
-#define DECLTOR_KINDS 6
-
-/* ast_decltor_kind_map maps ast_decltor_kind_t to a string representation for
- * formatting. */
-const char *ast_decltor_kind_map[DECLTOR_KINDS];
 
 typedef struct ast_decltor {
   struct ast_node_t *inner; /* ast_ident | ast_decltor */
@@ -252,9 +252,7 @@ struct ast_node_t *parse_decltor(parser_t *);
  */
 
 typedef struct ast_decl {
-  struct ast_node_t *decl_specs;
-  struct ast_node_t *decltor;
-  struct ast_node_t *name;
+  struct ast_node_t *name; /* ast_ident */
   struct type *type;
 } ast_decl;
 
@@ -272,7 +270,9 @@ struct ast_node_t *parse_decl(parser_t *p);
 struct ast_node_t *parse_block_stmt(parser_t *);
 
 typedef struct ast_block_stmt {
-  struct ast_node_t *stmts;
+  struct ast_node_t *items;
+  int items_len;
+  int items_cap;
 } ast_block_stmt;
 
 /*
@@ -281,9 +281,7 @@ typedef struct ast_block_stmt {
  * Used only as a temporary node, should not exist in the final AST.
  */
 
-typedef struct ast_tok {
-  token_t tok;
-} ast_tok;
+typedef token_t ast_tok;
 
 /*
  * ast_node_t represents AST nodes.
@@ -299,7 +297,8 @@ typedef struct ast_node_t {
     ast_lit lit;
     ast_decl decl;
     ast_tok tok;
-  } data;
+    ast_block_stmt block_stmt;
+  } u;
 } ast_node_t;
 
 void print_ast(ast_node_t *root, int depth);

@@ -6,25 +6,53 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *ast_decltor_kind_map[DECLTOR_KINDS] = {
-    [IdentDecltor] = "Ident", [PtrDecltor] = "Ptr",   [FnDecltor] = "Fn",
-    [ArrDecltor] = "Arr",     [AbstDecltor] = "Abst", [GroupDecltor] = "Group"};
-
-void print_type(type *t, int depth) {
-  int i;
-
-  for (i = 0; i < depth; i++) {
-    printf(" ");
-  }
-
+void print_type(type *t) {
   switch (t->kind) {
-  case PtrT:
-    printf("Pointer %p:\n", (void *)t);
-    print_type(t->inner, depth + 1);
-    break;
-  case NumericT:
-    printf("Numeric %p: %s\n", (void *)t, token_kind_map[t->numeric.base]);
-    break;
+  case PtrT: {
+    printf("*");
+    if (t->inner->kind == FnT || t->inner->kind == ArrT) {
+      printf("(");
+    }
+    print_type(t->inner);
+    if (t->inner->kind == FnT || t->inner->kind == ArrT) {
+      printf(")");
+    }
+    return;
+  }
+  case ArrT: {
+    print_type(t->inner);
+    printf("[");
+    if (t->arr_size) {
+      printf("%d", t->arr_size);
+    }
+    printf("]");
+    return;
+  }
+  case FnT: {
+    int i;
+    printf("(");
+    for (i = 0; i < t->fn_param_decls_len; i++) {
+      ast_node_t *decl = t->fn_param_decls + i;
+      if (decl->u.decl.name) {
+        printf("%s: ", decl->u.decl.name->u.ident);
+      }
+      print_type(decl->u.decl.type);
+      if (i != t->fn_param_decls_len - 1) {
+        printf(", ");
+      }
+    }
+    printf(") -> ");
+    print_type(t->inner);
+    return;
+  }
+  case NumericT: {
+    printf("%s", token_kind_map[t->numeric.base]);
+    return;
+  }
+  case VoidT: {
+    printf("Void");
+    return;
+  }
   default:
     break;
   }
@@ -32,87 +60,56 @@ void print_type(type *t, int depth) {
 
 void print_ast(ast_node_t *root, int depth) {
   int i;
-  int j;
 
+  if (depth) {
+    printf(" `");
+  }
   for (i = 0; i < depth; i++) {
-    printf(" ");
+    printf("-");
   }
 
   switch (root->kind) {
   case Ident: {
-    printf("Ident: %s\n", root->data.ident.name);
+    printf("Ident: %s\n", root->u.ident);
     break;
   }
   case FnDefn: {
-    puts("FnDefn:");
-    print_ast(root->data.fn_defn.decl_specs, depth + 1);
-    print_ast(root->data.fn_defn.decltor, depth + 1);
-    print_ast(root->data.fn_defn.body, depth + 1);
-    break;
-  }
-  case DeclSpecs: {
-    puts("DeclSpecs:");
-    for (i = 0; i < root->data.decl_specs.specs_len; i++) {
-      print_ast(root->data.decl_specs.specs + i, depth + 1);
+    printf("\033[1mFnDefn\033[0m ");
+    if (root->u.fn_defn.decl->name) {
+      printf("%s", root->u.fn_defn.decl->name->u.ident);
     }
-    break;
-  }
-  case Decltor: {
-    printf("Decltor: %s\n", ast_decltor_kind_map[root->data.decltor.kind]);
-    if (root->data.decltor.kind == ArrDecltor) {
-      for (i = 0; i < depth + 1; i++) {
-        printf(" ");
-      }
-      puts("Size:");
-      if (root->data.decltor.data.arr_size != NULL) {
-        print_ast(root->data.decltor.data.arr_size, depth + 2);
-      }
-    } else if (root->data.decltor.kind == FnDecltor) {
-      for (i = 0; i < depth + 1; i++) {
-        printf(" ");
-      }
-      puts("Params:");
-      for (i = 0; i < root->data.decltor.data.params.decl_specs_len; i++) {
-        for (j = 0; j < depth + 2; j++) {
-          printf(" ");
-        }
-        printf("%d: \n", i);
-        print_ast(root->data.decltor.data.params.decl_specs + i, depth + 3);
-        print_ast(root->data.decltor.data.params.decltors + i, depth + 3);
-      }
-      for (i = 0; i < depth + 1; i++) {
-        printf(" ");
-      }
-      puts("Inner:");
-      print_ast(root->data.decltor.inner, depth + 3);
-    default:
-      break;
-    }
-
-    if (root->data.decltor.kind != AbstDecltor) {
-      print_ast(root->data.decltor.inner, depth + 1);
-    }
-
+    print_type(root->u.fn_defn.decl->type);
+    puts("");
+    print_ast(root->u.fn_defn.body, depth);
     break;
   }
   case BlockStmt: {
-    puts("BlockStmt");
+    int i;
+    for (i = 0; i < root->u.block_stmt.items_len; i++) {
+      print_ast(root->u.block_stmt.items + i, depth + 1);
+    }
     break;
   }
   case Lit: {
-    printf("Lit: %d\n", root->data.lit.value);
+    printf("Lit: %d\n", root->u.lit.value);
     break;
   }
   case Decl: {
-    puts("Decl:");
-    print_type(root->data.decl.type, depth + 1);
-    /*     print_ast(root->data.decl.decl_specs, depth + 1);
-        print_ast(root->data.decl.decltor, depth + 1); */
+    printf("\033[1mDecl\033[0m ");
+    if (root->u.decl.name) {
+      printf("%s: ", root->u.decl.name->u.ident);
+    }
+    print_type(root->u.decl.type);
+    puts("");
     break;
   }
   case Tok: {
-    printf("Tok: %s [%s]\n", root->data.tok.tok.text,
-           token_kind_map[root->data.tok.tok.kind]);
+    printf("Tok: %s [%s]\n", root->u.tok.text,
+           token_kind_map[root->u.tok.kind]);
+    break;
+  }
+  default: {
+    printf("\033[1m%s\033[0m ", ast_node_kind_map[root->kind]);
   }
   }
 }
@@ -165,11 +162,9 @@ ast_node_t *new_node(ast_node_kind_t kind) {
   return node;
 }
 
-type *parse_type(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
-  type *t;
-
-  type *topt;
-  /* DeclSpecs form the innermost type, so parse first */
+ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
+  ast_decl *d = calloc(1, sizeof(ast_decl));
+  type *t = NULL;
 
   /* Since types are outside-in and decltors are inside-out, decltors are
    * inverted recursively with a stack */
@@ -180,38 +175,89 @@ type *parse_type(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
   ast_node_t *cur;
   type *prev = NULL;
 
-  for (cur = decltor; cur->kind == Decltor && cur->data.decltor.inner;
-       cur = cur->data.decltor.inner) {
-    *stack_top++ = cur;
+  for (cur = decltor; cur->kind == Decltor && cur->u.decltor.inner;
+       cur = cur->u.decltor.inner) {
+    if (cur->u.decltor.kind != AbstDecltor) {
+      *stack_top++ = cur;
+    }
   }
 
   for (; stack < stack_top;) {
     ast_node_t *top = *--stack_top;
     t = calloc(1, sizeof(type));
-    switch (top->data.decltor.kind) {
-    case PtrDecltor:
-      t->kind = PtrT;
-      prev->inner = t;
-      printf("ptr: %p -> %p\n", (void *)prev, (void *)t);
+
+    switch (top->u.decltor.kind) {
+    case IdentDecltor: {
+      d->name = top->u.decltor.inner;
       break;
+    }
+    case PtrDecltor: {
+      t->kind = PtrT;
+      if (prev) {
+        prev->inner = t;
+      }
+      break;
+    }
+    case ArrDecltor: {
+      t->kind = ArrT;
+      if (top->u.decltor.data.arr_size) {
+        t->arr_size = top->u.decltor.data.arr_size->u.lit.value;
+      } else {
+        t->arr_size = 0;
+      }
+      if (prev) {
+        prev->inner = t;
+      }
+      break;
+    }
+    case FnDecltor: {
+      int i;
+      t->kind = FnT;
+      for (i = 0; i < top->u.decltor.data.params.decl_specs_len; i++) {
+        ast_node_t *param = new_node(Decl);
+        param->u.decl = *decl(top->u.decltor.data.params.decl_specs + i,
+                              top->u.decltor.data.params.decltors + i);
+        append_node(&t->fn_param_decls, &t->fn_param_decls_len,
+                    &t->fn_param_decls_cap, *param);
+      }
+      if (top->u.decltor.data.params.decl_specs_len == 0) {
+        t->fn_param_decls = new_node(Decl);
+        t->fn_param_decls->u.decl.type = calloc(1, sizeof(type));
+        t->fn_param_decls->u.decl.type->kind = VoidT;
+        t->fn_param_decls_len = 1;
+      }
+
+      if (prev) {
+        prev->inner = t;
+      }
+      break;
+    }
+    case GroupDecltor: {
+      t = prev;
+      break;
+    }
     default:
       break;
     };
 
-    if (!topt && top->data.decltor.kind != IdentDecltor &&
-        top->data.decltor.kind != AbstDecltor) {
-      topt = t;
+    if (!d->type && top->u.decltor.kind != IdentDecltor &&
+        top->u.decltor.kind != AbstDecltor) {
+      d->type = t;
     }
+
     prev = t;
   }
 
+  /* DeclSpecs form the innermost type */
+
   if (decl_specs) {
-    ast_node_t *specs = decl_specs->data.decl_specs.specs;
+    ast_node_t *specs = decl_specs->u.decl_specs.specs;
     int i;
 
     t = calloc(1, sizeof(type));
-    for (i = 0; i < decl_specs->data.decl_specs.specs_len; i++) {
-      token_t tok = specs[i].data.tok.tok;
+    for (i = 0; i < decl_specs->u.decl_specs.specs_len; i++) {
+      token_t tok = specs[i].u.tok;
+
       switch (tok.kind) {
       case Char:
       case Int:
@@ -221,40 +267,41 @@ type *parse_type(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
         t->numeric.base = tok.kind;
         break;
       }
+      case Void: {
+        t->kind = VoidT;
+        break;
+      }
       default:
         break;
       }
     }
 
-    prev->inner = t;
-    printf("decl_specs: %p -> %p\n", (void *)prev, (void *)t);
-    printf("topt: %p\n", (void *)topt);
-
-    return topt;
+    if (prev) {
+      prev->inner = t;
+    }
+    if (!d->type) {
+      d->type = t;
+    }
   }
 
-  printf("topt: %p\n", (void *)topt);
-  printf("topt->inner: %p\n", (void *)topt->inner);
-
-  return topt;
+  return d;
 }
 
 ast_node_t *parse_ident(parser_t *p) {
   ast_node_t *node = new_node(Ident);
-  ast_ident *ident = &node->data.ident;
 
-  ident->name = malloc(sizeof(p->tok.text) + 1);
-  strcpy(ident->name, p->tok.text);
+  node->u.ident = malloc(sizeof(p->tok.text) + 1);
+  strcpy(node->u.ident, p->tok.text);
   expect(p, Id);
+
   return node;
 }
 
 ast_node_t *parse_into_ident(parser_t *p) {
   ast_node_t *node = new_node(Ident);
-  ast_ident *ident = &node->data.ident;
 
-  ident->name = malloc(sizeof(p->tok.text) + 1);
-  strcpy(ident->name, p->tok.text);
+  node->u.ident = malloc(sizeof(p->tok.text) + 1);
+  strcpy(node->u.ident, p->tok.text);
   advance(p);
 
   return node;
@@ -262,13 +309,13 @@ ast_node_t *parse_into_ident(parser_t *p) {
 
 ast_node_t *parse_fn_defn(parser_t *p) {
   ast_node_t *node = new_node(FnDefn);
+
   ast_node_t *decl_specs = parse_decl_specs(p);
   ast_node_t *decltor = parse_decltor(p);
   ast_node_t *block_stmt = parse_block_stmt(p);
 
-  ast_fn_defn *fn_defn = &node->data.fn_defn;
-  fn_defn->decl_specs = decl_specs;
-  fn_defn->decltor = decltor;
+  ast_fn_defn *fn_defn = &node->u.fn_defn;
+  fn_defn->decl = decl(decl_specs, decltor);
   fn_defn->body = block_stmt;
 
   return node;
@@ -276,12 +323,12 @@ ast_node_t *parse_fn_defn(parser_t *p) {
 
 ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
   ast_node_t *node = new_node(DeclSpecs);
-  ast_decl_specs *decl_specs = &node->data.decl_specs;
+  ast_decl_specs *decl_specs = &node->u.decl_specs;
 
   while (is_decl_spec(p->tok)) {
     ast_node_t spec = {0};
     spec.kind = Tok;
-    spec.data.tok.tok = p->tok;
+    spec.u.tok = p->tok;
     append_node(&decl_specs->specs, &decl_specs->specs_len,
                 &decl_specs->specs_cap, spec);
     advance(p);
@@ -292,7 +339,7 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
 
 ast_node_t *parse_lit(parser_t *p) {
   ast_node_t *node = new_node(Lit);
-  node->data.lit.value = atoi(p->tok.text);
+  node->u.lit.value = atoi(p->tok.text);
   advance(p);
   return node;
 }
@@ -301,7 +348,7 @@ ast_node_t *parse_decltor(parser_t *p) { /* -> ast_decltor */
   ast_node_t *node = new_node(Decltor);
   ast_node_t *inner = NULL;
   ast_node_t *outer = NULL;
-  ast_decltor *decltor = &node->data.decltor;
+  ast_decltor *decltor = &node->u.decltor;
 
   if (p->kind == Star) {
     decltor->kind = PtrDecltor;
@@ -328,7 +375,7 @@ ast_node_t *parse_decltor(parser_t *p) { /* -> ast_decltor */
   for (outer = NULL; p->kind == LBrack || p->kind == LParen; node = outer) {
     ast_decltor *outer_decltor;
     outer = new_node(Decltor);
-    outer_decltor = &outer->data.decltor;
+    outer_decltor = &outer->u.decltor;
     if (p->kind == LBrack) { /* decltor[] */
       outer_decltor->kind = ArrDecltor;
       expect(p, LBrack);
@@ -359,7 +406,7 @@ ast_node_t *parse_decltor(parser_t *p) { /* -> ast_decltor */
       }
       expect(p, RParen);
     }
-    outer->data.decltor.inner = node;
+    outer->u.decltor.inner = node;
   }
 
   return node;
@@ -401,20 +448,24 @@ bool is_decl_spec(token_t token) {
 ast_node_t *parse_block_stmt(parser_t *p) {
   ast_node_t *node = new_node(BlockStmt);
   expect(p, LBrace);
-  while (p->kind != RBrace) {
-    advance(p);
+
+  for (; p->tok.kind != RBrace;) {
+    ast_node_t *item = NULL;
+    if (is_decl_spec(p->tok)) {
+      item = parse_decl(p);
+    }
+    append_node(&node->u.block_stmt.items, &node->u.block_stmt.items_len,
+                &node->u.block_stmt.items_cap, *item);
   }
+
   expect(p, RBrace);
   return node;
 }
 
 ast_node_t *parse_decl(parser_t *p) {
   ast_node_t *node = new_node(Decl);
-  ast_decl *decl = &node->data.decl;
 
-  decl->decl_specs = parse_decl_specs(p);
-  decl->decltor = parse_decltor(p);
-  decl->type = parse_type(decl->decl_specs, decl->decltor);
+  node->u.decl = *decl(parse_decl_specs(p), parse_decltor(p));
 
   expect(p, Semi);
 
@@ -448,3 +499,6 @@ ast_node_t **parse(parser_t *p) {
 
   return nodes;
 }
+
+const char *ast_node_kind_map[] = {"Ident",   "Lit",  "FnDefn",    "DeclSpecs",
+                                   "Decltor", "Decl", "BlockStmt", "Tok"};

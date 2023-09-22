@@ -9,8 +9,6 @@
 int main(int argc, char *argv[]) {
   char *src;
   tokens_t tokens;
-  int i;
-  char buffer[128];
   parser_t parser;
   ast_node_t **ast;
   ast_node_t **node;
@@ -21,10 +19,6 @@ int main(int argc, char *argv[]) {
   }
   load_file(argv[1], &src);
   tokens = lex(src);
-
-  for (i = 0; i < tokens.len; i++) {
-    puts(format_token(buffer, 128, tokens.tokens[i]));
-  }
 
   parser.tokens = &tokens;
   set_pos(&parser, 0);
