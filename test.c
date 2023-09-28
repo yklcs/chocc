@@ -1,8 +1,9 @@
 int (*fn)(int[128], char **, int (*)[]);
 int *(*(*(*foo)(char))(double))[3];
-char *f(int, char *[], void (*)(int, char[]));
+char *f(int, char *[], void (*)(volatile int, char[]));
 char(*(*x[3])());
-int func(int a, int b, int c);
+static const int **x[5];
+static int func(int a, int b, volatile int c);
 struct vec2 {
   int x;
   int y;

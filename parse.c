@@ -7,6 +7,16 @@
 #include <string.h>
 
 void print_type(type *t) {
+  if (t->store_class) {
+    printf("%s ", token_kind_map[t->store_class]);
+  }
+  if (t->is_const) {
+    printf("Const ");
+  }
+  if (t->is_volatile) {
+    printf("Volatile ");
+  }
+
   switch (t->kind) {
   case PtrT: {
     printf("*");
@@ -338,10 +348,30 @@ ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
 
   if (decl_specs) {
     ast_decl_specs *specs = &decl_specs->u.decl_specs;
+    token_kind_t store_class = 0;
+    bool is_const = false;
+    bool is_volatile = false;
 
     t = calloc(1, sizeof(type));
     for (; specs; specs = specs->next) {
       token_kind_t tok = specs->tok;
+
+      switch (specs->kind) {
+      case StoreClass: {
+        store_class = tok;
+        continue;
+      }
+      case TypeQual: {
+        if (tok == Const) {
+          is_const = true;
+        } else {
+          is_volatile = true;
+        }
+        continue;
+      }
+      case TypeSpec:
+        break;
+      }
 
       switch (tok) {
       case Char:
@@ -386,6 +416,9 @@ ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
     if (!d->type) {
       d->type = t;
     }
+    d->type->store_class = store_class;
+    d->type->is_const = is_const;
+    d->type->is_volatile = is_volatile;
   }
 
   return d;
@@ -432,6 +465,7 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
   while (is_decl_spec(p->tok)) {
     ast_decl_specs *decl_specs = calloc(1, sizeof(ast_decl_specs));
     decl_specs->tok = p->kind;
+
     switch (p->kind) {
     case Const:
     case Volatile: {
@@ -942,6 +976,7 @@ ast_node_t **parse(parser_t *p) {
       set_pos(p, pos);
       node = parse_decl(p);
     } else {
+      printf("unexpected token %s\n", p->tok.text);
       throw(p);
     }
 

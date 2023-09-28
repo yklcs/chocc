@@ -81,7 +81,6 @@ typedef enum type_kind {
 } type_kind;
 
 typedef struct type {
-  char *modifiers;
   type_kind kind;
 
   /* numeric */
@@ -106,6 +105,13 @@ typedef struct type {
   struct ast_node_t *enum_exprs;  /* ast_expr */
 
   struct ast_node_t *name; /* ast_ident */
+
+  /* type qualifiers */
+  bool is_const;
+  bool is_volatile; /* unused */
+
+  /* storage class specifers */
+  token_kind_t store_class;
 } type;
 
 void print_type(type *);
