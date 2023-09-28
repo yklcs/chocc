@@ -49,6 +49,51 @@ void print_type(type *t) {
     printf("%s", token_kind_map[t->numeric.base]);
     return;
   }
+  case UnionT:
+  case StructT: {
+    ast_node_t *decl = t->struct_fields;
+    if (t->kind == StructT) {
+      printf("Struct ");
+    } else {
+      printf("Union ");
+    }
+    if (t->name) {
+      printf("%s ", t->name->u.ident);
+    }
+    printf("{ ");
+    for (; decl; decl = decl->next) {
+      if (decl->u.decl.name) {
+        printf("%s: ", decl->u.decl.name->u.ident);
+      }
+      print_type(decl->u.decl.type);
+      if (decl->next) {
+        printf(", ");
+      }
+    }
+    printf(" }");
+    return;
+  }
+  case EnumT: {
+    ast_node_t *idents = t->enum_idents;
+    ast_node_t *exprs = t->enum_exprs;
+    printf("Enum ");
+    if (t->name) {
+      printf("%s ", t->name->u.ident);
+    }
+    printf("{ ");
+    for (; idents; idents = idents->next) {
+      printf("%s", idents->u.ident);
+      if (exprs->u.expr.lhs || exprs->u.expr.mhs || exprs->u.expr.rhs) {
+        printf(" = ...");
+      }
+      if (idents->next) {
+        printf(", ");
+      }
+      exprs = exprs->next;
+    }
+    printf(" }");
+    return;
+  }
   case VoidT: {
     printf("Void");
     return;
@@ -119,6 +164,9 @@ void print_ast(ast_node_t *root, int depth) {
       printf("\033[1mPostfixExpr\033[0m: %s\n",
              token_kind_map[root->u.expr.op]);
       print_ast(root->u.expr.lhs, depth + 1);
+      if (root->u.expr.op == LBrack || root->u.expr.op == Dot ||
+          root->u.expr.op == Arrow)
+        print_ast(root->u.expr.rhs, depth + 1);
       break;
     }
     case InfixExpr: {
@@ -289,24 +337,42 @@ ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
   /* DeclSpecs form the innermost type */
 
   if (decl_specs) {
-    ast_node_t *specs = decl_specs->u.decl_specs.specs;
-    int i;
+    ast_decl_specs *specs = &decl_specs->u.decl_specs;
 
     t = calloc(1, sizeof(type));
-    for (i = 0; i < decl_specs->u.decl_specs.specs_len; i++) {
-      token_t tok = specs[i].u.tok;
+    for (; specs; specs = specs->next) {
+      token_kind_t tok = specs->tok;
 
-      switch (tok.kind) {
+      switch (tok) {
       case Char:
       case Int:
       case Float:
       case Double: {
         t->kind = NumericT;
-        t->numeric.base = tok.kind;
+        t->numeric.base = tok;
         break;
       }
       case Void: {
         t->kind = VoidT;
+        break;
+      }
+      case Struct: {
+        t->kind = StructT;
+        t->name = specs->name;
+        t->struct_fields = specs->struct_fields;
+        break;
+      }
+      case Union: {
+        t->kind = UnionT;
+        t->name = specs->name;
+        t->struct_fields = specs->struct_fields;
+        break;
+      }
+      case Enum: {
+        t->kind = EnumT;
+        t->name = specs->name;
+        t->enum_idents = specs->enum_idents;
+        t->enum_exprs = specs->enum_exprs;
         break;
       }
       default:
@@ -361,16 +427,109 @@ ast_node_t *parse_fn_defn(parser_t *p) {
 
 ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
   ast_node_t *node = new_node(DeclSpecs);
-  ast_decl_specs *decl_specs = &node->u.decl_specs;
+  ast_decl_specs *cur = &node->u.decl_specs;
 
   while (is_decl_spec(p->tok)) {
-    ast_node_t spec = {0};
-    spec.kind = Tok;
-    spec.u.tok = p->tok;
-    append_node(&decl_specs->specs, &decl_specs->specs_len,
-                &decl_specs->specs_cap, spec);
-    advance(p);
+    ast_decl_specs *decl_specs = calloc(1, sizeof(ast_decl_specs));
+    decl_specs->tok = p->kind;
+    switch (p->kind) {
+    case Const:
+    case Volatile: {
+      decl_specs->kind = TypeQual;
+      advance(p);
+      break;
+    }
+    case Typedef:
+    case Extern:
+    case Static:
+    case Auto:
+    case Register: {
+      decl_specs->kind = StoreClass;
+      advance(p);
+      break;
+    }
+    case Void:
+    case Char:
+    case Short:
+    case Int:
+    case Long:
+    case Float:
+    case Double:
+    case Signed:
+    case Unsigned: {
+      decl_specs->kind = TypeSpec;
+      advance(p);
+      break;
+    }
+    case Struct:
+    case Union: {
+      decl_specs->kind = TypeSpec;
+      advance(p);
+      if (p->kind == Id) {
+        decl_specs->name = parse_ident(p);
+      }
+      if (p->kind == LBrace) {
+        ast_node_t *cur_field;
+        expect(p, LBrace);
+        cur_field = decl_specs->struct_fields = parse_decl(p);
+        for (; p->kind != RBrace;) {
+          ast_node_t *decl = parse_decl(p);
+          cur_field->next = decl;
+          cur_field = decl;
+        }
+        cur_field->next = NULL;
+        expect(p, RBrace);
+      }
+      break;
+    }
+    case Enum: {
+      decl_specs->kind = TypeSpec;
+      advance(p);
+      if (p->kind == Id) {
+        decl_specs->name = parse_ident(p);
+      }
+      if (p->kind == LBrace) {
+        ast_node_t *cur_ident;
+        ast_node_t *cur_expr = decl_specs->enum_exprs = new_node(Expr);
+
+        expect(p, LBrace);
+        cur_ident = decl_specs->enum_idents = parse_ident(p);
+        if (p->kind == Assn) {
+          advance(p);
+          cur_expr = decl_specs->enum_exprs = expr(p, 0);
+        }
+
+        for (; p->kind == Comma;) {
+          ast_node_t *ident;
+          ast_node_t *expr = new_node(Expr);
+
+          expect(p, Comma);
+          ident = parse_ident(p);
+          if (p->kind == Assn) {
+            advance(p);
+            expr = parse_expr(p);
+          }
+
+          cur_ident->next = ident;
+          cur_expr->next = expr;
+          cur_ident = ident;
+          cur_expr = expr;
+        }
+        cur_ident->next = NULL;
+        cur_expr->next = NULL;
+        expect(p, RBrace);
+      }
+      break;
+    }
+    default:
+      puts("invalid type");
+      throw(p);
+    }
+
+    cur->next = decl_specs;
+    cur = decl_specs;
   }
+  cur->next = NULL;
 
   return node;
 }
@@ -472,11 +631,14 @@ bool is_decl_spec(token_t token) {
     return true;
   /* type qualifiers */
   case Const:
-  case Restrict:
   case Volatile:
     return true;
-  /* function specifiers */
-  case Inline:
+  /* struct or union */
+  case Struct:
+  case Union:
+    return true;
+  /* enum */
+  case Enum:
     return true;
   default:
     return false;

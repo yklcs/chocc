@@ -19,11 +19,17 @@ int *(*(*(*foo)(char))(double))[3];
 char *f(int, char *[], void (*)(int, char[]));
 char(*(*x[3])());
 int func(int a, int b, int c);
+
+struct vec2 {
+  int x;
+  int y;
+} v2;
+typedef enum Colors { Red = 1, Blue, Green } colors;
+
 int xx(char c) {
   int *arr[5];
-  c = a > b ? (5 % 2) && 1 : x[1];
+  c /= a > b ? (5 % 2) && st.member : x[1];
   func(0, 1 * 0, *ptr);
-  strct.mem = 0;
 }
 ```
 
@@ -35,9 +41,11 @@ Decl foo: *((Char) -> *((Double) -> *(*Int[3])))
 Decl f: (Int, *Char[], *((Int, Char[]) -> Void)) -> *Char
 Decl x: *((Void) -> *Char)[3]
 Decl func: (a: Int, b: Int, c: Int) -> Int
+Decl v2: Struct vec2 { x: Int, y: Int }
+Decl colors: Enum Colors { Red = ..., Blue, Green }
 FnDefn xx(c: Char) -> Int
  `-Decl arr: *Int[5]
- `-InfixExpr: Assn
+ `-InfixExpr: SlashAssn
   `-Ident: c
   `-InfixExpr: Question
    `-InfixExpr: Gt
@@ -47,9 +55,12 @@ FnDefn xx(c: Char) -> Int
     `-InfixExpr: Percent
      `-Lit: 5
      `-Lit: 2
-    `-Lit: 1
+    `-PostfixExpr: Dot
+     `-Ident: st
+     `-Ident: member
    `-PostfixExpr: LBrack
     `-Ident: x
+    `-Lit: 1
  `-CallExpr
   `-Ident: func
   `-CommaExpr
@@ -59,10 +70,6 @@ FnDefn xx(c: Char) -> Int
     `-Lit: 0
    `-PrefixExpr: Star
     `-Ident: ptr
- `-InfixExpr: Assn
-  `-PostfixExpr: Dot
-   `-Ident: strct
-  `-Lit: 0
 ```
 
 ## Steps

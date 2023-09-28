@@ -69,7 +69,16 @@ typedef struct numeric_type {
   bool is_long;
 } numeric_type;
 
-typedef enum type_kind { NumericT, PtrT, ArrT, FnT, VoidT, StructT } type_kind;
+typedef enum type_kind {
+  NumericT,
+  PtrT,
+  ArrT,
+  FnT,
+  VoidT,
+  StructT,
+  UnionT,
+  EnumT
+} type_kind;
 
 typedef struct type {
   char *modifiers;
@@ -90,10 +99,13 @@ typedef struct type {
   int fn_param_decls_len;
   int fn_param_decls_cap;
 
-  /* struct */
-  struct ast_node_t *struct_decls;
-  int struct_decls_len;
-  int struct_decls_cap;
+  /* struct and union */
+  struct ast_node_t *struct_fields; /* ast_decl */
+  /* enum */
+  struct ast_node_t *enum_idents; /* ast_ident */
+  struct ast_node_t *enum_exprs;  /* ast_expr */
+
+  struct ast_node_t *name; /* ast_ident */
 } type;
 
 void print_type(type *);
@@ -167,10 +179,25 @@ struct ast_node_t *parse_fn_defn(parser_t *);
  *    | function_specifier declaration_specifiers?
  */
 
+typedef enum ast_decl_spec_kind {
+  StoreClass,
+  TypeSpec,
+  TypeQual
+} ast_decl_spec_kind;
+
 typedef struct ast_decl_specs {
-  struct ast_node_t *specs; /* ast_tok */
-  int specs_len;
-  int specs_cap;
+  ast_decl_spec_kind kind;
+  token_kind_t tok;
+
+  /* struct and union */
+  struct ast_node_t *struct_fields; /* ast_decl */
+  /* enum */
+  struct ast_node_t *enum_idents; /* ast_ident */
+  struct ast_node_t *enum_exprs;  /* ast_expr */
+
+  struct ast_node_t *name;
+
+  struct ast_decl_specs *next;
 } ast_decl_specs;
 
 struct ast_node_t *parse_decl_specs(parser_t *);
@@ -334,6 +361,7 @@ typedef struct ast_node_t {
     ast_block_stmt block_stmt;
     ast_expr expr;
   } u;
+  struct ast_node_t *next;
 } ast_node_t;
 
 void print_ast(ast_node_t *root, int depth);
