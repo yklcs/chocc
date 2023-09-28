@@ -98,23 +98,6 @@ typedef struct type {
 
 void print_type(type *);
 
-/*
- * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
- * Each item corresponds to a ast_* struct.
- */
-typedef enum ast_node_kind_t {
-  Ident,
-  Lit,
-  FnDefn,
-  DeclSpecs,
-  Decltor,
-  Decl,
-  BlockStmt,
-  Tok
-} ast_node_kind_t;
-
-extern const char *ast_node_kind_map[];
-
 struct ast_node_t;
 
 /*
@@ -283,6 +266,57 @@ typedef struct ast_block_stmt {
 
 typedef token_t ast_tok;
 
+typedef enum ast_expr_kind_t {
+  InfixExpr,
+  PrefixExpr,
+  PostfixExpr,
+  CommaExpr,
+  CallExpr
+} ast_expr_kind_t;
+
+/*
+ * Expr(ression)
+ */
+typedef struct ast_expr {
+  struct ast_node_t *lhs;
+  struct ast_node_t *rhs;
+  struct ast_node_t *mhs; /* mhs stores ?mhs: and mhs, mhs, mhs */
+  int mhs_len;
+  int mhs_cap;
+  ast_expr_kind_t kind;
+  token_kind_t op;
+} ast_expr;
+
+typedef struct expr_power {
+  int left;
+  int right;
+} expr_power;
+
+struct ast_node_t *parse_expr(parser_t *);
+struct ast_node_t *expr(parser_t *, int min_bp);
+
+expr_power expr_power_infix(token_kind_t);
+expr_power expr_power_prefix(token_kind_t);
+expr_power expr_power_postfix(token_kind_t);
+
+/*
+ * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
+ * Each item corresponds to a ast_* struct.
+ */
+typedef enum ast_node_kind_t {
+  Ident,
+  Lit,
+  FnDefn,
+  DeclSpecs,
+  Decltor,
+  Decl,
+  BlockStmt,
+  Tok,
+  Expr
+} ast_node_kind_t;
+
+extern const char *ast_node_kind_map[];
+
 /*
  * ast_node_t represents AST nodes.
  * Nodes are homogenous, children are irregular.
@@ -298,6 +332,7 @@ typedef struct ast_node_t {
     ast_decl decl;
     ast_tok tok;
     ast_block_stmt block_stmt;
+    ast_expr expr;
   } u;
 } ast_node_t;
 

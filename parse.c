@@ -61,16 +61,16 @@ void print_type(type *t) {
 void print_ast(ast_node_t *root, int depth) {
   int i;
 
-  if (depth) {
-    printf(" `");
-  }
   for (i = 0; i < depth; i++) {
-    printf("-");
+    printf(" ");
+  }
+  if (depth) {
+    printf("`-");
   }
 
   switch (root->kind) {
   case Ident: {
-    printf("Ident: %s\n", root->u.ident);
+    printf("\033[1mIdent\033[0m: %s\n", root->u.ident);
     break;
   }
   case FnDefn: {
@@ -91,7 +91,7 @@ void print_ast(ast_node_t *root, int depth) {
     break;
   }
   case Lit: {
-    printf("Lit: %d\n", root->u.lit.value);
+    printf("\033[1mLit\033[0m: %d\n", root->u.lit.value);
     break;
   }
   case Decl: {
@@ -108,8 +108,46 @@ void print_ast(ast_node_t *root, int depth) {
            token_kind_map[root->u.tok.kind]);
     break;
   }
+  case Expr: {
+    switch (root->u.expr.kind) {
+    case PrefixExpr: {
+      printf("\033[1mPrefixExpr\033[0m: %s\n", token_kind_map[root->u.expr.op]);
+      print_ast(root->u.expr.rhs, depth + 1);
+      break;
+    }
+    case PostfixExpr: {
+      printf("\033[1mPostfixExpr\033[0m: %s\n",
+             token_kind_map[root->u.expr.op]);
+      print_ast(root->u.expr.lhs, depth + 1);
+      break;
+    }
+    case InfixExpr: {
+      printf("\033[1mInfixExpr\033[0m: %s\n", token_kind_map[root->u.expr.op]);
+      print_ast(root->u.expr.lhs, depth + 1);
+      if (root->u.expr.op == Question) {
+        print_ast(root->u.expr.mhs, depth + 1);
+      }
+      print_ast(root->u.expr.rhs, depth + 1);
+      break;
+    }
+    case CommaExpr: {
+      int i;
+      puts("\033[1mCommaExpr\033[0m");
+      for (i = 0; i < root->u.expr.mhs_len; i++) {
+        print_ast(root->u.expr.mhs + i, depth + 1);
+      }
+      break;
+    }
+    case CallExpr:
+      puts("\033[1mCallExpr\033[0m");
+      print_ast(root->u.expr.lhs, depth + 1);
+      print_ast(root->u.expr.rhs, depth + 1);
+      break;
+    }
+    break;
+  }
   default: {
-    printf("\033[1m%s\033[0m ", ast_node_kind_map[root->kind]);
+    printf("\033[1m%s\033[0m\n ", ast_node_kind_map[root->kind]);
   }
   }
 }
@@ -453,6 +491,9 @@ ast_node_t *parse_block_stmt(parser_t *p) {
     ast_node_t *item = NULL;
     if (is_decl_spec(p->tok)) {
       item = parse_decl(p);
+    } else {
+      item = parse_expr(p);
+      expect(p, Semi);
     }
     append_node(&node->u.block_stmt.items, &node->u.block_stmt.items_len,
                 &node->u.block_stmt.items_cap, *item);
@@ -470,6 +511,255 @@ ast_node_t *parse_decl(parser_t *p) {
   expect(p, Semi);
 
   return node;
+}
+
+ast_node_t *expr(parser_t *p, int min_bp) {
+  ast_node_t *lhs = new_node(Expr);
+
+  switch (p->kind) {
+  case Id: {
+    lhs = parse_ident(p);
+    break;
+  }
+  case Number:
+  case String: {
+    lhs = parse_lit(p);
+    break;
+  }
+  case LParen: { /* group or cast */
+    advance(p);
+    if (p->kind == Int) { /* TODO: parse type casts properly */
+      expr_power power = expr_power_prefix(LParen);
+      advance(p);
+      expect(p, RParen);
+      lhs->u.expr.kind = PrefixExpr;
+      lhs->u.expr.op = LParen;
+      lhs->u.expr.rhs = expr(p, power.right);
+    } else {
+      /* TODO: add sizeof(type-name) */
+      lhs = parse_expr(p);
+      expect(p, RParen);
+    }
+    break;
+  }
+  case PlusPlus:
+  case MinusMinus:
+  case Amp:
+  case Star:
+  case Plus:
+  case Minus:
+  case Tilde:
+  case Exclaim:
+  case Sizeof: { /* prefix */
+    token_kind_t op = p->kind;
+    expr_power power = expr_power_prefix(op);
+    advance(p);
+
+    lhs->u.expr.kind = PrefixExpr;
+    lhs->u.expr.op = op;
+    /* TODO: add sizeof(type-name) */
+    lhs->u.expr.rhs = expr(p, power.right);
+    break;
+  }
+  default:
+    break;
+  }
+
+  for (;;) {
+    expr_power power = expr_power_postfix(p->kind);
+    if (power.left) { /* postfix */
+      ast_node_t *lhs_old = lhs;
+      token_kind_t op = p->kind;
+
+      if (power.left < min_bp) {
+        break;
+      }
+
+      advance(p);
+
+      lhs = new_node(Expr);
+      lhs->u.expr.kind = PostfixExpr;
+      lhs->u.expr.op = op;
+      lhs->u.expr.lhs = lhs_old;
+
+      if (op == Dot || op == Arrow) {
+        lhs->u.expr.rhs = parse_ident(p);
+      } else if (op == LParen) {
+        lhs->u.expr.kind = CallExpr;
+        lhs->u.expr.rhs = parse_expr(p);
+        expect(p, RParen);
+      } else if (op == LBrack) {
+        lhs->u.expr.rhs = expr(p, 0);
+        expect(p, RBrack);
+      }
+
+      continue;
+    }
+
+    power = expr_power_infix(p->kind);
+    if (power.left && power.right) {
+      ast_node_t *lhs_old = lhs;
+      token_kind_t op = p->kind;
+
+      if (power.left < min_bp) {
+        break;
+      }
+
+      advance(p);
+
+      lhs = new_node(Expr);
+      lhs->u.expr.kind = InfixExpr;
+      lhs->u.expr.op = op;
+      lhs->u.expr.lhs = lhs_old;
+
+      if (op == Question) {
+        lhs->u.expr.mhs = expr(p, 0);
+        expect(p, Colon);
+      }
+      lhs->u.expr.rhs = expr(p, power.right);
+
+      continue;
+    }
+
+    break;
+  }
+
+  return lhs;
+}
+
+expr_power expr_power_prefix(token_kind_t op) {
+  expr_power power = {0};
+  switch (op) {
+  case PlusPlus:
+  case MinusMinus:
+  case Plus:
+  case Minus:
+  case Amp:
+  case Star:
+  case Tilde:
+  case Exclaim:
+  case Sizeof:
+  case LParen:
+    power.right = 27;
+    break;
+  default:
+    break;
+  }
+  return power;
+}
+
+expr_power expr_power_infix(token_kind_t op) {
+  expr_power power = {0};
+  switch (op) {
+  case Star:
+  case Slash:
+  case Percent:
+    power.right = 26;
+    power.left = 25;
+    break;
+  case Plus:
+  case Minus:
+    power.right = 24;
+    power.left = 23;
+    break;
+  case LShft:
+  case RShft:
+    power.right = 22;
+    power.left = 21;
+    break;
+  case Lt:
+  case Leq:
+  case Gt:
+  case Geq:
+    power.right = 20;
+    power.left = 19;
+    break;
+  case Eq:
+  case Neq:
+    power.right = 18;
+    power.left = 17;
+    break;
+  case Amp:
+    power.right = 16;
+    power.left = 15;
+    break;
+  case Caret:
+    power.right = 14;
+    power.left = 13;
+    break;
+  case Bar:
+    power.right = 12;
+    power.left = 11;
+    break;
+  case AmpAmp:
+    power.right = 10;
+    power.left = 9;
+    break;
+  case BarBar:
+    power.right = 8;
+    power.left = 7;
+    break;
+  case Question:
+    power.right = 5;
+    power.left = 6;
+    break;
+  case Assn:
+  case PlusAssn:
+  case MinusAssn:
+  case StarAssn:
+  case SlashAssn:
+  case PercentAssn:
+  case LShftAssn:
+  case RShftAssn:
+  case AmpAssn:
+  case CaretAssn:
+  case BarAssn:
+    power.right = 3;
+    power.left = 4;
+    break;
+  default:
+    break;
+  }
+  return power;
+}
+
+expr_power expr_power_postfix(token_kind_t op) {
+  expr_power power = {0};
+  switch (op) {
+  case PlusPlus:
+  case MinusMinus:
+  case LParen:
+  case LBrack:
+  case Dot:
+  case Arrow:
+    power.left = 28;
+    break;
+  default:
+    break;
+  }
+  return power;
+}
+
+ast_node_t *parse_expr(parser_t *p) {
+  ast_node_t *root = expr(p, 0);
+  ast_node_t *root_comma;
+
+  if (p->kind != Comma) {
+    return root;
+  }
+
+  root_comma = new_node(Expr);
+  root_comma->u.expr.kind = CommaExpr;
+  root_comma->u.expr.op = Comma;
+  append_node(&root_comma->u.expr.mhs, &root_comma->u.expr.mhs_len,
+              &root_comma->u.expr.mhs_cap, *root);
+  for (; p->kind == Comma;) {
+    expect(p, Comma);
+    append_node(&root_comma->u.expr.mhs, &root_comma->u.expr.mhs_len,
+                &root_comma->u.expr.mhs_cap, *expr(p, 0));
+  }
+
+  return root_comma;
 }
 
 ast_node_t **parse(parser_t *p) {
@@ -500,5 +790,6 @@ ast_node_t **parse(parser_t *p) {
   return nodes;
 }
 
-const char *ast_node_kind_map[] = {"Ident",   "Lit",  "FnDefn",    "DeclSpecs",
-                                   "Decltor", "Decl", "BlockStmt", "Tok"};
+const char *ast_node_kind_map[] = {"Ident",     "Lit",     "FnDefn",
+                                   "DeclSpecs", "Decltor", "Decl",
+                                   "BlockStmt", "Tok",     "Expr"};
