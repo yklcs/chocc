@@ -138,10 +138,91 @@ void print_ast(ast_node_t *root, int depth) {
     print_ast(root->u.fn_defn.body, depth);
     break;
   }
-  case BlockStmt: {
-    int i;
-    for (i = 0; i < root->u.block_stmt.items_len; i++) {
-      print_ast(root->u.block_stmt.items + i, depth + 1);
+  case Stmt: {
+    ast_node_t *item;
+
+    switch (root->u.stmt.kind) {
+    case LabelStmt: {
+      printf("\033[1mLabelStmt\033[0m ");
+      if (root->u.stmt.label->kind == Ident) {
+        printf("%s:\n", root->u.stmt.label->u.ident);
+      } else {
+        printf("%s:\n", token_kind_map[root->u.stmt.label->u.tok.kind]);
+      }
+      if (root->u.stmt.label->next) {
+        print_ast(root->u.stmt.label, depth + 1);
+      }
+      print_ast(root->u.stmt.inner, depth + 1);
+      break;
+    }
+    case BlockStmt: {
+      puts("\033[1mBlockStmt\033[0m");
+      for (item = root->u.stmt.inner; item; item = item->next) {
+        print_ast(item, depth + 1);
+      }
+      break;
+    }
+    case ExprStmt: {
+      puts("\033[1mExprStmt\033[0m");
+      print_ast(root->u.stmt.inner, depth + 1);
+      break;
+    }
+    case IfStmt: {
+      puts("\033[1mIfStmt\033[0m");
+      print_ast(root->u.stmt.cond, depth + 1);
+      print_ast(root->u.stmt.inner, depth + 1);
+      break;
+    }
+    case IfElseStmt: {
+      puts("\033[1mIfElseStmt\033[0m");
+      print_ast(root->u.stmt.cond, depth + 1);
+      print_ast(root->u.stmt.inner, depth + 1);
+      print_ast(root->u.stmt.inner->next, depth + 1);
+      break;
+    }
+    case SwitchStmt: {
+      puts("\033[1mSwitchStmt\033[0m");
+      print_ast(root->u.stmt.cond, depth + 1);
+      print_ast(root->u.stmt.inner, depth + 1);
+      break;
+    }
+    case WhileStmt: {
+      puts("\033[1mWhileStmt\033[0m");
+      print_ast(root->u.stmt.cond, depth + 1);
+      print_ast(root->u.stmt.inner, depth + 1);
+      break;
+    }
+    case DoWhileStmt: {
+      puts("\033[1mWhileStmt\033[0m");
+      print_ast(root->u.stmt.inner, depth + 1);
+      print_ast(root->u.stmt.cond, depth + 1);
+      break;
+    }
+    case ForStmt: {
+      puts("\033[1mForStmt\033[0m");
+      if (root->u.stmt.init) {
+        print_ast(root->u.stmt.init, depth + 1);
+      }
+      if (root->u.stmt.cond) {
+        print_ast(root->u.stmt.cond, depth + 1);
+      }
+      if (root->u.stmt.iter) {
+        print_ast(root->u.stmt.iter, depth + 1);
+      }
+      print_ast(root->u.stmt.inner, depth + 1);
+      break;
+    }
+    case JumpStmt: {
+      printf("\033[1mJumpStmt\033[0m");
+      printf(" %s\n", token_kind_map[root->u.stmt.jump->u.tok.kind]);
+      if (root->u.stmt.inner) {
+        print_ast(root->u.stmt.inner, depth + 1);
+      }
+      break;
+    }
+    default: {
+      printf("expr\n");
+    }
     }
     break;
   }
@@ -196,11 +277,14 @@ void print_ast(ast_node_t *root, int depth) {
       }
       break;
     }
-    case CallExpr:
+    case CallExpr: {
       puts("\033[1mCallExpr\033[0m");
       print_ast(root->u.expr.lhs, depth + 1);
-      print_ast(root->u.expr.rhs, depth + 1);
+      if (root->u.expr.rhs) {
+        print_ast(root->u.expr.rhs, depth + 1);
+      }
       break;
+    }
     }
     break;
   }
@@ -242,14 +326,18 @@ void expect(parser_t *parser, token_kind_t kind) {
   }
 }
 
+void advance(parser_t *parser) {
+  set_pos(parser, ++parser->pos);
+}
+
 void set_pos(parser_t *parser, int pos) {
   parser->pos = pos;
   parser->tok = parser->tokens->tokens[pos];
   parser->kind = parser->tok.kind;
 }
 
-void advance(parser_t *parser) {
-  set_pos(parser, ++parser->pos);
+token_t peek(parser_t *parser, int delta) {
+  return parser->tokens->tokens[parser->pos + delta];
 }
 
 ast_node_t *new_node(ast_node_kind_t kind) {
@@ -449,7 +537,7 @@ ast_node_t *parse_fn_defn(parser_t *p) {
 
   ast_node_t *decl_specs = parse_decl_specs(p);
   ast_node_t *decltor = parse_decltor(p);
-  ast_node_t *block_stmt = parse_block_stmt(p);
+  ast_node_t *block_stmt = parse_stmt(p);
 
   ast_fn_defn *fn_defn = &node->u.fn_defn;
   fn_defn->decl = decl(decl_specs, decltor);
@@ -679,23 +767,208 @@ bool is_decl_spec(token_t token) {
   }
 }
 
-ast_node_t *parse_block_stmt(parser_t *p) {
-  ast_node_t *node = new_node(BlockStmt);
+ast_node_t *parse_stmt(parser_t *p) {
+  switch (p->kind) {
+  case LBrace: {
+    return parse_stmt_block(p);
+  }
+  case Case:
+  case Default: {
+    return parse_stmt_label(p);
+  }
+  case Id: {
+    if (peek(p, 1).kind == Colon) {
+      return parse_stmt_label(p);
+    } else {
+      return parse_stmt_expr(p);
+    }
+  }
+  case If:
+  case Switch: {
+    return parse_stmt_branch(p);
+  }
+  case While:
+  case Do:
+  case For: {
+    return parse_stmt_iter(p);
+  }
+  case Goto:
+  case Continue:
+  case Break:
+  case Return: {
+    return parse_stmt_jump(p);
+  }
+  default: {
+    puts("invalid statement");
+    throw(p);
+  }
+  }
+  return NULL;
+}
+
+ast_node_t *parse_stmt_label(parser_t *p) {
+  ast_node_t *node = new_node(Stmt);
+
+  if (p->kind == Id && peek(p, 1).kind == Colon) {
+    node->u.stmt.label = parse_ident(p);
+  } else if (p->kind == Case) {
+    node->u.stmt.label = parse_tok(p);
+    node->u.stmt.label->next = parse_expr(p);
+  } else if (p->kind == Default) {
+    node->u.stmt.label = parse_tok(p);
+  } else {
+    puts("invalid label statement");
+    throw(p);
+  }
+
+  expect(p, Colon);
+
+  node->u.stmt.inner = parse_stmt(p);
+  node->u.stmt.kind = LabelStmt;
+
+  return node;
+}
+
+ast_node_t *parse_stmt_block(parser_t *p) {
+  ast_node_t *node = new_node(Stmt);
+  ast_node_t *item_prev;
+
   expect(p, LBrace);
 
-  for (; p->tok.kind != RBrace;) {
+  for (; p->tok.kind != RBrace;) { /* allow mixed decls and stmts? */
     ast_node_t *item = NULL;
     if (is_decl_spec(p->tok)) {
       item = parse_decl(p);
     } else {
-      item = parse_expr(p);
-      expect(p, Semi);
+      item = parse_stmt(p);
     }
-    append_node(&node->u.block_stmt.items, &node->u.block_stmt.items_len,
-                &node->u.block_stmt.items_cap, *item);
+
+    if (!node->u.stmt.inner) {
+      node->u.stmt.inner = item;
+      item_prev = item;
+    }
+
+    item_prev->next = item;
+    item_prev = item;
   }
 
+  item_prev->next = NULL;
   expect(p, RBrace);
+
+  node->u.stmt.kind = BlockStmt;
+  return node;
+}
+
+ast_node_t *parse_stmt_expr(parser_t *p) {
+  ast_node_t *node = new_node(Stmt);
+
+  node->u.stmt.inner = parse_expr(p);
+  expect(p, Semi);
+  node->u.stmt.kind = ExprStmt;
+
+  return node;
+}
+
+ast_node_t *parse_stmt_branch(parser_t *p) {
+  ast_node_t *node = new_node(Stmt);
+
+  if (p->kind == If) {
+    node->u.stmt.kind = IfStmt;
+  } else if (p->kind == Switch) {
+    node->u.stmt.kind = SwitchStmt;
+  }
+  advance(p);
+
+  expect(p, LParen);
+  node->u.stmt.cond = parse_expr(p);
+  expect(p, RParen);
+  node->u.stmt.inner = parse_stmt(p);
+
+  if (p->kind == Else) {
+    node->u.stmt.kind = IfElseStmt;
+    advance(p);
+    node->u.stmt.inner->next = parse_stmt(p);
+  }
+
+  return node;
+}
+
+ast_node_t *parse_stmt_iter(parser_t *p) {
+  ast_node_t *node = new_node(Stmt);
+
+  if (p->kind == While) {
+    advance(p);
+    node->u.stmt.kind = WhileStmt;
+
+    expect(p, LParen);
+    node->u.stmt.cond = parse_expr(p);
+    expect(p, RParen);
+
+    node->u.stmt.inner = parse_stmt(p);
+  } else if (p->kind == Do) {
+    advance(p);
+    node->u.stmt.kind = DoWhileStmt;
+
+    node->u.stmt.inner = parse_stmt(p);
+    expect(p, While);
+
+    expect(p, LParen);
+    node->u.stmt.cond = parse_expr(p);
+    expect(p, RParen);
+    expect(p, Semi);
+  } else if (p->kind == For) {
+    advance(p);
+    node->u.stmt.kind = ForStmt;
+
+    expect(p, LParen);
+    if (p->kind != Semi) {
+      node->u.stmt.init = parse_expr(p);
+    }
+    expect(p, Semi);
+    if (p->kind != Semi) {
+      node->u.stmt.cond = parse_expr(p);
+    }
+    expect(p, Semi);
+    if (p->kind != RParen) {
+      node->u.stmt.iter = parse_expr(p);
+    }
+    expect(p, RParen);
+
+    node->u.stmt.inner = parse_stmt(p);
+  }
+
+  return node;
+}
+
+ast_node_t *parse_stmt_jump(parser_t *p) {
+  ast_node_t *node = new_node(Stmt);
+  node->u.stmt.kind = JumpStmt;
+
+  switch (p->kind) {
+  case Goto: {
+    node->u.stmt.jump = parse_tok(p);
+    node->u.stmt.inner = parse_ident(p);
+    break;
+  }
+  case Continue:
+  case Break: {
+    node->u.stmt.jump = parse_tok(p);
+    break;
+  }
+  case Return: {
+    node->u.stmt.jump = parse_tok(p);
+    if (p->kind != Semi) {
+      node->u.stmt.inner = parse_expr(p);
+    }
+    break;
+  }
+  default: {
+    puts("invalid jump stmt");
+    throw(p);
+  }
+  }
+
+  expect(p, Semi);
   return node;
 }
 
@@ -706,6 +979,13 @@ ast_node_t *parse_decl(parser_t *p) {
 
   expect(p, Semi);
 
+  return node;
+}
+
+struct ast_node_t *parse_tok(parser_t *p) {
+  ast_node_t *node = new_node(Tok);
+  node->u.tok = p->tok;
+  advance(p);
   return node;
 }
 
@@ -782,7 +1062,9 @@ ast_node_t *expr(parser_t *p, int min_bp) {
         lhs->u.expr.rhs = parse_ident(p);
       } else if (op == LParen) {
         lhs->u.expr.kind = CallExpr;
-        lhs->u.expr.rhs = parse_expr(p);
+        if (p->kind != RParen) {
+          lhs->u.expr.rhs = parse_expr(p);
+        }
         expect(p, RParen);
       } else if (op == LBrack) {
         lhs->u.expr.rhs = expr(p, 0);
@@ -989,4 +1271,4 @@ ast_node_t **parse(parser_t *p) {
 
 const char *ast_node_kind_map[] = {"Ident",     "Lit",     "FnDefn",
                                    "DeclSpecs", "Decltor", "Decl",
-                                   "BlockStmt", "Tok",     "Expr"};
+                                   "Stmt",      "Tok",     "Expr"};

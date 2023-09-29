@@ -24,6 +24,9 @@ void advance(parser_t *parser);
 /* set_pos sets the parser state to the position specified by pos. */
 void set_pos(parser_t *parser, int pos);
 
+/* peek returns the token at parser->pos + delta without modifying state. */
+token_t peek(parser_t *parser, int delta);
+
 /*
  * Type
  *
@@ -166,7 +169,7 @@ typedef struct ast_lit {
 
 typedef struct ast_fn_defn {
   struct ast_decl *decl;
-  struct ast_node_t *body; /* block_stmt */
+  struct ast_node_t *body; /* stmt */
 } ast_fn_defn;
 
 struct ast_node_t *parse_fn_defn(parser_t *);
@@ -275,29 +278,12 @@ typedef struct ast_decl {
 struct ast_node_t *parse_decl(parser_t *p);
 
 /*
- * BlockStmt (block statement)
- *
- * 6.8.2
- * compound_statement := {
- *    block_item*
- * }
- * block_item := declaration | statement
- */
-struct ast_node_t *parse_block_stmt(parser_t *);
-
-typedef struct ast_block_stmt {
-  struct ast_node_t *items;
-  int items_len;
-  int items_cap;
-} ast_block_stmt;
-
-/*
  * Tok(en)
  * Tok represents a token used as an AST node.
- * Used only as a temporary node, should not exist in the final AST.
  */
 
 typedef token_t ast_tok;
+struct ast_node_t *parse_tok(parser_t *p);
 
 typedef enum ast_expr_kind_t {
   InfixExpr,
@@ -333,6 +319,53 @@ expr_power expr_power_prefix(token_kind_t);
 expr_power expr_power_postfix(token_kind_t);
 
 /*
+ * St(ate)m(en)t
+ *
+ * label
+ * block
+ * expr
+ * select: if, if-else, switch
+ * iter: while, do-while, for
+ * jump: goto, continue, break, return
+ */
+
+typedef enum ast_stmt_kind {
+  LabelStmt,
+  BlockStmt,
+  ExprStmt,
+  IfStmt,
+  IfElseStmt,
+  SwitchStmt,
+  WhileStmt,
+  DoWhileStmt,
+  ForStmt,
+  JumpStmt
+} ast_stmt_kind;
+
+typedef struct ast_stmt {
+  ast_stmt_kind kind;
+
+  struct ast_node_t *label; /* Ident, Tok(case)->Expr, Tok(default) */
+
+  struct ast_node_t *init;
+  struct ast_node_t *cond;
+  struct ast_node_t *iter;
+
+  struct ast_node_t *inner; /* Stmt, Stmt->Stmt, Expr */
+
+  struct ast_node_t *jump; /* Goto, Continue, Break, Return */
+} ast_stmt;
+
+struct ast_node_t *parse_stmt(parser_t *);
+
+struct ast_node_t *parse_stmt_label(parser_t *);
+struct ast_node_t *parse_stmt_block(parser_t *);
+struct ast_node_t *parse_stmt_expr(parser_t *);
+struct ast_node_t *parse_stmt_branch(parser_t *);
+struct ast_node_t *parse_stmt_iter(parser_t *);
+struct ast_node_t *parse_stmt_jump(parser_t *);
+
+/*
  * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
  * Each item corresponds to a ast_* struct.
  */
@@ -343,7 +376,7 @@ typedef enum ast_node_kind_t {
   DeclSpecs,
   Decltor,
   Decl,
-  BlockStmt,
+  Stmt,
   Tok,
   Expr
 } ast_node_kind_t;
@@ -364,7 +397,7 @@ typedef struct ast_node_t {
     ast_lit lit;
     ast_decl decl;
     ast_tok tok;
-    ast_block_stmt block_stmt;
+    ast_stmt stmt;
     ast_expr expr;
   } u;
   struct ast_node_t *next;

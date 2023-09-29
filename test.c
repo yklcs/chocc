@@ -10,7 +10,22 @@ struct vec2 {
 } v2;
 typedef enum Colors { Red = 1, Blue, Green } colors;
 int xx(char c) {
+  int i;
+  if (a == b) {
+    f1();
+  } else if (b < 0) {
+    f2();
+  }
+
+  for (i = 0; i < 10; i++) {
+    print(i);
+    break;
+  }
+
+  x = 1;
   int *arr[5];
   c /= a > b ? (5 % 2) && st.member : x[1];
   func(0, 1 * 0, *ptr);
+
+  return 1;
 }
