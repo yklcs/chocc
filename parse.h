@@ -18,6 +18,10 @@ typedef struct parser_t {
   token_kind_t kind;
 } parser_t;
 
+void throw(parser_t *parser);
+
+void expect(parser_t *parser, token_kind_t kind);
+
 /* advance advances the parser state by one token. */
 void advance(parser_t *parser);
 
@@ -154,8 +158,26 @@ struct ast_node_t *parse_into_ident(parser_t *);
  *           | character_constant
  */
 
+typedef enum lit_kind {
+  OctLit,
+  DecLit,
+  HexLit,
+  CharLit,
+  FloatingLit,
+  StrLit
+} lit_kind;
+
 typedef struct ast_lit {
-  int value;
+  lit_kind kind;
+
+  long int integer;
+  long double floating;
+  char *string;
+  char character;
+
+  bool is_unsigned;
+  bool is_long;
+  bool is_float;
 } ast_lit;
 
 /*

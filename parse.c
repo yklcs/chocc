@@ -227,7 +227,21 @@ void print_ast(ast_node_t *root, int depth) {
     break;
   }
   case Lit: {
-    printf("\033[1mLit\033[0m: %d\n", root->u.lit.value);
+    printf("\033[1mLit\033[0m: ");
+    switch (root->u.lit.kind) {
+    case DecLit: {
+      printf("%ld\n", root->u.lit.integer);
+      break;
+    }
+    case StrLit: {
+      printf("\"%s\"\n", root->u.lit.string);
+      break;
+    }
+    default: {
+      puts("not yet implemented");
+      break;
+    }
+    }
     break;
   }
   case Decl: {
@@ -385,7 +399,7 @@ ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
     case ArrDecltor: {
       t->kind = ArrT;
       if (top->u.decltor.data.arr_size) {
-        t->arr_size = top->u.decltor.data.arr_size->u.lit.value;
+        t->arr_size = top->u.decltor.data.arr_size->u.lit.integer;
       } else {
         t->arr_size = 0;
       }
@@ -658,7 +672,16 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
 
 ast_node_t *parse_lit(parser_t *p) {
   ast_node_t *node = new_node(Lit);
-  node->u.lit.value = atoi(p->tok.text);
+
+  if (p->kind == Number) {
+    node->u.lit.kind = DecLit;
+    node->u.lit.integer = atoi(p->tok.text);
+  } else if (p->kind == String) {
+    node->u.lit.kind = StrLit;
+    node->u.lit.string = calloc(strlen(p->tok.text) - 1, 1);
+    strncpy(node->u.lit.string, p->tok.text + 1, strlen(p->tok.text) - 2);
+  }
+
   advance(p);
   return node;
 }

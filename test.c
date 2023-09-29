@@ -12,7 +12,7 @@ typedef enum Colors { Red = 1, Blue, Green } colors;
 int xx(char c) {
   int i;
   if (a == b) {
-    f1();
+    printf("hello world");
   } else if (b < 0) {
     f2();
   }
