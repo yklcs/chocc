@@ -20,6 +20,9 @@ token_t lex_next(file *f) {
 
   for (;; c = next_char(f, &pos)) {
     switch (c) {
+    case '\0': {
+      return new_token(Eof, pos, "");
+    }
     case '\n': {
       return new_token(Lf, pos, "\\n");
     }
@@ -300,7 +303,9 @@ int lex_file(file *f, token_t **toks) {
     }
     (*toks)[len++] = tok;
   }
-  (*toks)[len++] = new_token(Eof, f->cur, "");
+  if ((*toks)[len].kind != Eof) {
+    (*toks)[len++] = new_token(Eof, f->cur, "");
+  }
 
   return len;
 }

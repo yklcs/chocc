@@ -1,3 +1,14 @@
+#define TEST_C
+#define A 10 + 1
+#define B +\
+ 2
+#define C + 3
+#define D + 4
+
+int main() {
+  a = A B C D;
+}
+
 int (*fn)(int[128], char **, int (*)[]);
 int sp\
 li\

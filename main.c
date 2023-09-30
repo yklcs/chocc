@@ -25,11 +25,13 @@ int main(int argc, char *argv[]) {
   print_file(f);
 
   toks_len = lex_file(f, &toks);
+
+  toks_len = cpp_replace(&toks, toks, toks_len);
+  toks_len = filter_tokens(&toks, token_not_lf, toks, toks_len);
+
   for (i = 0; i < toks_len; i++) {
     print_token(toks[i]);
   }
-
-  toks_len = filter_tokens(&toks, token_not_lf, toks, toks_len);
 
   parser.toks = toks;
   set_pos(&parser, 0);
