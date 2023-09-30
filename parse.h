@@ -3,7 +3,7 @@
 #pragma once
 
 #include "chocc.h"
-#include "token.h"
+#include "lex.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -12,13 +12,14 @@
  * parser_t represents the parser and its state.
  */
 typedef struct parser_t {
-  tokens_t *tokens;
+  token_t *toks;
+  int toks_len;
   int pos;
   token_t tok;
   token_kind_t kind;
 } parser_t;
 
-void throw(parser_t *parser);
+void throw(parser_t * parser);
 
 void expect(parser_t *parser, token_kind_t kind);
 

@@ -1,6 +1,6 @@
 #include "parse.h"
 #include "chocc.h"
-#include "token.h"
+#include "lex.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -346,12 +346,12 @@ void advance(parser_t *parser) {
 
 void set_pos(parser_t *parser, int pos) {
   parser->pos = pos;
-  parser->tok = parser->tokens->tokens[pos];
+  parser->tok = parser->toks[pos];
   parser->kind = parser->tok.kind;
 }
 
 token_t peek(parser_t *parser, int delta) {
-  return parser->tokens->tokens[parser->pos + delta];
+  return parser->toks[parser->pos + delta];
 }
 
 ast_node_t *new_node(ast_node_kind_t kind) {
@@ -1269,8 +1269,8 @@ ast_node_t **parse(parser_t *p) {
   int i;
   for (i = 0; p->kind != Eof; i++) {
     ast_node_t *node = NULL;
-
     int pos = p->pos;
+
     parse_decl_specs(p);
     parse_decltor(p);
 

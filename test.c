@@ -1,5 +1,8 @@
 int (*fn)(int[128], char **, int (*)[]);
-int *(*(*(*foo)(char))(double))[3];
+int sp\
+li\
+ce;
+int *(*(*(*foo)(char))(double)) /* block comment */[3];
 char *f(int, char *[], void (*)(volatile int, char[]));
 char(*(*x[3])());
 static const int **x[5];
