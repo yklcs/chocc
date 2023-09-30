@@ -110,6 +110,7 @@ typedef enum {
   Directive,
 
   /* internal */
+  Lf,
   Eof
 } token_kind_t;
 
@@ -130,7 +131,7 @@ static const char *token_kind_map[] = {
     "Int",         "Long",     "Register",   "Restrict",    "Return",
     "Short",       "Signed",   "Sizeof",     "Static",      "Struct",
     "Switch",      "Typedef",  "Union",      "Unsigned",    "Void",
-    "Volatile",    "While",    "Directive",  "Eof"};
+    "Volatile",    "While",    "Directive",  "Lf",          "Eof"};
 
 #define KEYWORDS 34
 static const char *keywords[KEYWORDS] = {

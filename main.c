@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "chocc.h"
+#include "cpp.h"
 #include "io.h"
 #include "lex.h"
 #include "parse.h"
@@ -27,6 +28,8 @@ int main(int argc, char *argv[]) {
   for (i = 0; i < toks_len; i++) {
     print_token(toks[i]);
   }
+
+  toks_len = filter_tokens(&toks, token_not_lf, toks, toks_len);
 
   parser.toks = toks;
   set_pos(&parser, 0);
