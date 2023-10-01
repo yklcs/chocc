@@ -127,12 +127,6 @@ void print_type(type *);
 struct ast_node_t;
 
 /*
- * decl consumes DeclSpecs and Decltor into a parsed declaration
- */
-struct ast_decl *decl(struct ast_node_t *decl_specs,
-                      struct ast_node_t *decltor);
-
-/*
  * Ident(ifier)
  *
  * 6.4.2.1
@@ -296,9 +290,19 @@ struct ast_node_t *parse_decltor(parser_t *);
 typedef struct ast_decl {
   struct ast_node_t *name; /* ast_ident */
   struct type *type;
+  struct ast_node_t *init; /* ast_expr */
 } ast_decl;
 
-struct ast_node_t *parse_decl(parser_t *p);
+/*
+ * Parses declarations, returning the head node and setting the tail node.
+ */
+struct ast_node_t *parse_decl(parser_t *p, struct ast_node_t **tail);
+
+/*
+ * decl consumes DeclSpecs and Decltor into a parsed declaration
+ */
+struct ast_decl *decl(struct ast_node_t *decl_specs,
+                      struct ast_node_t *decltor);
 
 /*
  * Tok(en)
@@ -389,6 +393,18 @@ struct ast_node_t *parse_stmt_iter(parser_t *);
 struct ast_node_t *parse_stmt_jump(parser_t *);
 
 /*
+ * ast_list represents a list of AST nodes.
+ */
+
+typedef struct ast_list {
+  int len;
+  int cap;
+  struct ast_node_t **nodes;
+} ast_list;
+
+void ast_list_append(ast_list *list, struct ast_node_t *item);
+
+/*
  * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
  * Each item corresponds to a ast_* struct.
  */
@@ -401,7 +417,8 @@ typedef enum ast_node_kind_t {
   Decl,
   Stmt,
   Tok,
-  Expr
+  Expr,
+  List
 } ast_node_kind_t;
 
 extern const char *ast_node_kind_map[];
@@ -422,6 +439,7 @@ typedef struct ast_node_t {
     ast_tok tok;
     ast_stmt stmt;
     ast_expr expr;
+    ast_list list;
   } u;
   struct ast_node_t *next;
 } ast_node_t;

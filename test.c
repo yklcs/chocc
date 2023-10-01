@@ -1,9 +1,8 @@
 #define TEST_C
 #define A 10 + 1
-#define B +\
- 2
-#define C + 3
-#define D + 4
+#define B +2
+#define C +3
+#define D +4
 
 int main() {
   a = A B C D;
@@ -12,19 +11,19 @@ int main() {
 int (*fn)(int[128], char **, int (*)[]);
 int sp\
 li\
-ce;
+ce = 0;
 int *(*(*(*foo)(char))(double)) /* block comment */[3];
 char *f(int, char *[], void (*)(volatile int, char[]));
 char(*(*x[3])());
 static const int **x[5];
 static int func(int a, int b, volatile int c);
 struct vec2 {
-  int x;
-  int y;
-} v2;
+  int x, y;
+} v2 = {0, 1};
 typedef enum Colors { Red = 1, Blue, Green } colors;
 int xx(char c) {
-  int i;
+  int i = 0, j, k = 2;
+  int **d = {{0, 1, 2}, {3, 4, 5}};
   if (a == b) {
     printf("hello world");
   } else if (b < 0) {

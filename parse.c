@@ -116,7 +116,7 @@ void print_type(type *t) {
 void print_ast(ast_node_t *root, int depth) {
   int i;
 
-  for (i = 0; i < depth; i++) {
+  for (i = 1; i < depth; i++) {
     printf(" ");
   }
   if (depth) {
@@ -135,7 +135,7 @@ void print_ast(ast_node_t *root, int depth) {
     }
     print_type(root->u.fn_defn.decl->type);
     puts("");
-    print_ast(root->u.fn_defn.body, depth);
+    print_ast(root->u.fn_defn.body, depth + 1);
     break;
   }
   case Stmt: {
@@ -245,12 +245,18 @@ void print_ast(ast_node_t *root, int depth) {
     break;
   }
   case Decl: {
-    printf("\033[1mDecl\033[0m ");
+    printf("\033[1mDecl\033[0m");
     if (root->u.decl.name) {
-      printf("%s: ", root->u.decl.name->u.ident);
+      printf(" %s: ", root->u.decl.name->u.ident);
     }
     print_type(root->u.decl.type);
     puts("");
+    if (root->u.decl.init) {
+      print_ast(root->u.decl.init, depth + 1);
+    }
+    if (root->next) {
+      print_ast(root->next, depth);
+    }
     break;
   }
   case Tok: {
@@ -299,6 +305,14 @@ void print_ast(ast_node_t *root, int depth) {
       }
       break;
     }
+    }
+    break;
+  }
+  case List: {
+    int i;
+    printf("\033[1mList\033[0m (len %d)\n", root->u.list.len);
+    for (i = 0; i < root->u.list.len; i++) {
+      print_ast(root->u.list.nodes[i], depth + 1);
     }
     break;
   }
@@ -357,6 +371,13 @@ token_t peek(parser_t *parser, int delta) {
 ast_node_t *new_node(ast_node_kind_t kind) {
   ast_node_t *node = calloc(1, sizeof(ast_node_t));
   node->kind = kind;
+
+  if (kind == List) {
+    node->u.list.cap = 16;
+    node->u.list.len = 0;
+    node->u.list.nodes = calloc(node->u.list.cap, sizeof(ast_node_t *));
+  }
+
   return node;
 }
 
@@ -605,15 +626,21 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
         decl_specs->name = parse_ident(p);
       }
       if (p->kind == LBrace) {
-        ast_node_t *cur_field;
+        ast_node_t *field_head;
+        ast_node_t *field_tail;
         expect(p, LBrace);
-        cur_field = decl_specs->struct_fields = parse_decl(p);
+
+        field_head = parse_decl(p, &field_tail);
+        decl_specs->struct_fields = field_head;
+
         for (; p->kind != RBrace;) {
-          ast_node_t *decl = parse_decl(p);
-          cur_field->next = decl;
-          cur_field = decl;
+          ast_node_t *field_tail_new;
+          field_head = parse_decl(p, &field_tail_new);
+          field_tail->next = field_head;
+          field_tail = field_tail_new;
         }
-        cur_field->next = NULL;
+
+        field_tail->next = NULL;
         expect(p, RBrace);
       }
       break;
@@ -854,28 +881,35 @@ ast_node_t *parse_stmt_label(parser_t *p) {
 
 ast_node_t *parse_stmt_block(parser_t *p) {
   ast_node_t *node = new_node(Stmt);
-  ast_node_t *item_prev;
+
+  ast_node_t *item_head = NULL;
+  ast_node_t *item_tail = NULL;
 
   expect(p, LBrace);
 
+  if (is_decl_spec(p->tok)) {
+    item_head = parse_decl(p, &item_tail);
+  } else {
+    item_head = parse_stmt(p);
+    item_tail = item_head;
+  }
+  node->u.stmt.inner = item_head;
+
   for (; p->tok.kind != RBrace;) { /* allow mixed decls and stmts? */
-    ast_node_t *item = NULL;
+    ast_node_t *item_tail_new;
+
     if (is_decl_spec(p->tok)) {
-      item = parse_decl(p);
+      item_head = parse_decl(p, &item_tail_new);
     } else {
-      item = parse_stmt(p);
+      item_head = parse_stmt(p);
+      item_tail_new = item_head;
     }
 
-    if (!node->u.stmt.inner) {
-      node->u.stmt.inner = item;
-      item_prev = item;
-    }
-
-    item_prev->next = item;
-    item_prev = item;
+    item_tail->next = item_head;
+    item_tail = item_tail_new;
   }
 
-  item_prev->next = NULL;
+  item_tail->next = NULL;
   expect(p, RBrace);
 
   node->u.stmt.kind = BlockStmt;
@@ -995,13 +1029,55 @@ ast_node_t *parse_stmt_jump(parser_t *p) {
   return node;
 }
 
-ast_node_t *parse_decl(parser_t *p) {
-  ast_node_t *node = new_node(Decl);
+ast_node_t *parse_init(parser_t *p) {
+  if (p->kind == LBrace) {
+    ast_node_t *ls = new_node(List);
+    advance(p);
 
-  node->u.decl = *decl(parse_decl_specs(p), parse_decltor(p));
+    for (;; expect(p, Comma)) {
+      ast_list_append(&ls->u.list, parse_init(p));
+      if (p->kind != Comma) {
+        break;
+      }
+    }
+
+    expect(p, RBrace);
+    return ls;
+  } else {
+    return expr(p, 0);
+  }
+}
+
+ast_node_t *parse_decl(parser_t *p, ast_node_t **tail) {
+  ast_node_t *node = new_node(Decl);
+  ast_node_t *decl_specs = parse_decl_specs(p);
+  ast_node_t *old = node;
+  node->u.decl = *decl(decl_specs, parse_decltor(p));
+
+  if (p->kind == Assn) {
+    expect(p, Assn);
+    node->u.decl.init = parse_init(p);
+  }
+
+  for (; p->kind == Comma;) {
+    ast_node_t *new = new_node(Decl);
+    expect(p, Comma);
+    new->u.decl = *decl(decl_specs, parse_decltor(p));
+
+    if (p->kind == Assn) {
+      expect(p, Assn);
+      new->u.decl.init = parse_init(p);
+    }
+
+    old->next = new;
+    old = new;
+  }
+
+  if (tail) {
+    *tail = old;
+  }
 
   expect(p, Semi);
-
   return node;
 }
 
@@ -1263,6 +1339,15 @@ ast_node_t *parse_expr(parser_t *p) {
   return root_comma;
 }
 
+void ast_list_append(ast_list *list, struct ast_node_t *item) {
+  if (list->len >= list->cap) {
+    list->cap *= 2;
+    list->nodes = realloc(list->nodes, sizeof(ast_node_t *));
+  }
+
+  list->nodes[list->len++] = item;
+}
+
 ast_node_t **parse(parser_t *p) {
   ast_node_t **nodes = calloc(128, sizeof(ast_node_t *));
 
@@ -1277,11 +1362,13 @@ ast_node_t **parse(parser_t *p) {
     if (p->kind == LBrace) { /* FnDefn */
       set_pos(p, pos);
       node = parse_fn_defn(p);
-    } else if (p->kind == Semi) { /* Decl */
+    } else if (p->kind == Semi || p->kind == Comma ||
+               p->kind == Assn) { /* Decl */
       set_pos(p, pos);
-      node = parse_decl(p);
+      node = parse_decl(p, NULL);
     } else {
-      printf("unexpected token %s\n", p->tok.text);
+      printf("unexpected token %s (%s)\n", p->tok.text,
+             token_kind_map[p->kind]);
       throw(p);
     }
 
@@ -1292,6 +1379,6 @@ ast_node_t **parse(parser_t *p) {
   return nodes;
 }
 
-const char *ast_node_kind_map[] = {"Ident",     "Lit",     "FnDefn",
-                                   "DeclSpecs", "Decltor", "Decl",
-                                   "Stmt",      "Tok",     "Expr"};
+const char *ast_node_kind_map[] = {"Ident",   "Lit",  "FnDefn", "DeclSpecs",
+                                   "Decltor", "Decl", "Stmt",   "Tok",
+                                   "Expr",    "List"};
