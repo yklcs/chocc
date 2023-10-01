@@ -445,7 +445,7 @@ typedef struct ast_node_t {
   struct ast_node_t *next;
 } ast_node_t;
 
-void print_ast(ast_node_t *root, int depth);
+void print_ast(ast_node_t *root, int depth, bool last, char *pad);
 ast_node_t **parse(parser_t *);
 
 #endif

@@ -2,9 +2,11 @@
 #include "chocc.h"
 #include "lex.h"
 
+#include <malloc/_malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_types/_null.h>
 
 void print_type(type *t) {
   if (t->store_class) {
@@ -117,14 +119,32 @@ void print_type(type *t) {
   }
 }
 
-void print_ast(ast_node_t *root, int depth) {
+void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
   int i;
+  int len_pad;
+  char *pad_new;
 
-  for (i = 1; i < depth; i++) {
-    printf(" ");
+  for (i = 1; i < depth * 2; i++) {
+    printf("%c", pad[i]);
   }
-  if (depth) {
+
+  len_pad = strlen(pad);
+  pad_new = calloc(1, len_pad + 3);
+  strcpy(pad_new, pad);
+
+  pad = pad_new;
+  if (last) {
+    pad[len_pad] = ' ';
+  } else {
+    pad[len_pad] = '|';
+  }
+  pad[len_pad + 1] = ' ';
+  pad[len_pad + 2] = 0;
+
+  if (depth && last) {
     printf("`-");
+  } else if (depth && !last) {
+    printf("|-");
   }
 
   switch (root->kind) {
@@ -139,7 +159,7 @@ void print_ast(ast_node_t *root, int depth) {
     }
     print_type(root->u.fn_defn.decl->type);
     puts("");
-    print_ast(root->u.fn_defn.body, depth + 1);
+    print_ast(root->u.fn_defn.body, depth + 1, true, pad);
     break;
   }
   case Stmt: {
@@ -152,7 +172,7 @@ void print_ast(ast_node_t *root, int depth) {
         printf("%s:\n", token_kind_map[root->u.stmt.label->u.tok.kind]);
       }
       if (root->u.stmt.case_expr) {
-        print_ast(root->u.stmt.case_expr, depth + 1);
+        print_ast(root->u.stmt.case_expr, depth + 1, true, pad);
       }
       break;
     }
@@ -160,65 +180,66 @@ void print_ast(ast_node_t *root, int depth) {
       int i;
       puts("\033[1mBlockStmt\033[0m");
       for (i = 0; i < root->u.stmt.inner->u.list.len; i++) {
-        print_ast(ast_list_at(root->u.stmt.inner, i), depth + 1);
+        print_ast(ast_list_at(root->u.stmt.inner, i), depth + 1,
+                  i == root->u.stmt.inner->u.list.len - 1, pad);
       }
       break;
     }
     case ExprStmt: {
       puts("\033[1mExprStmt\033[0m");
-      print_ast(root->u.stmt.inner, depth + 1);
+      print_ast(root->u.stmt.inner, depth + 1, true, pad);
       break;
     }
     case IfStmt: {
       puts("\033[1mIfStmt\033[0m");
-      print_ast(root->u.stmt.cond, depth + 1);
-      print_ast(root->u.stmt.inner, depth + 1);
+      print_ast(root->u.stmt.cond, depth + 1, false, pad);
+      print_ast(root->u.stmt.inner, depth + 1, true, pad);
       break;
     }
     case IfElseStmt: {
       puts("\033[1mIfElseStmt\033[0m");
-      print_ast(root->u.stmt.cond, depth + 1);
-      print_ast(root->u.stmt.inner, depth + 1);
-      print_ast(root->u.stmt.inner_else, depth + 1);
+      print_ast(root->u.stmt.cond, depth + 1, false, pad);
+      print_ast(root->u.stmt.inner, depth + 1, false, pad);
+      print_ast(root->u.stmt.inner_else, depth + 1, true, pad);
       break;
     }
     case SwitchStmt: {
       puts("\033[1mSwitchStmt\033[0m");
-      print_ast(root->u.stmt.cond, depth + 1);
-      print_ast(root->u.stmt.inner, depth + 1);
+      print_ast(root->u.stmt.cond, depth + 1, false, pad);
+      print_ast(root->u.stmt.inner, depth + 1, true, pad);
       break;
     }
     case WhileStmt: {
       puts("\033[1mWhileStmt\033[0m");
-      print_ast(root->u.stmt.cond, depth + 1);
-      print_ast(root->u.stmt.inner, depth + 1);
+      print_ast(root->u.stmt.cond, depth + 1, false, pad);
+      print_ast(root->u.stmt.inner, depth + 1, true, pad);
       break;
     }
     case DoWhileStmt: {
       puts("\033[1mWhileStmt\033[0m");
-      print_ast(root->u.stmt.inner, depth + 1);
-      print_ast(root->u.stmt.cond, depth + 1);
+      print_ast(root->u.stmt.inner, depth + 1, false, pad);
+      print_ast(root->u.stmt.cond, depth + 1, true, pad);
       break;
     }
     case ForStmt: {
       puts("\033[1mForStmt\033[0m");
       if (root->u.stmt.init) {
-        print_ast(root->u.stmt.init, depth + 1);
+        print_ast(root->u.stmt.init, depth + 1, false, pad);
       }
       if (root->u.stmt.cond) {
-        print_ast(root->u.stmt.cond, depth + 1);
+        print_ast(root->u.stmt.cond, depth + 1, false, pad);
       }
       if (root->u.stmt.iter) {
-        print_ast(root->u.stmt.iter, depth + 1);
+        print_ast(root->u.stmt.iter, depth + 1, false, pad);
       }
-      print_ast(root->u.stmt.inner, depth + 1);
+      print_ast(root->u.stmt.inner, depth + 1, true, pad);
       break;
     }
     case JumpStmt: {
       printf("\033[1mJumpStmt\033[0m");
       printf(" %s\n", token_kind_map[root->u.stmt.jump->u.tok.kind]);
       if (root->u.stmt.inner) {
-        print_ast(root->u.stmt.inner, depth + 1);
+        print_ast(root->u.stmt.inner, depth + 1, true, pad);
       }
       break;
     }
@@ -254,7 +275,7 @@ void print_ast(ast_node_t *root, int depth) {
     print_type(root->u.decl.type);
     puts("");
     if (root->u.decl.init) {
-      print_ast(root->u.decl.init, depth + 1);
+      print_ast(root->u.decl.init, depth + 1, true, pad);
     }
     break;
   }
@@ -267,40 +288,41 @@ void print_ast(ast_node_t *root, int depth) {
     switch (root->u.expr.kind) {
     case PrefixExpr: {
       printf("\033[1mPrefixExpr\033[0m: %s\n", token_kind_map[root->u.expr.op]);
-      print_ast(root->u.expr.rhs, depth + 1);
+      print_ast(root->u.expr.rhs, depth + 1, true, pad);
       break;
     }
     case PostfixExpr: {
       printf("\033[1mPostfixExpr\033[0m: %s\n",
              token_kind_map[root->u.expr.op]);
-      print_ast(root->u.expr.lhs, depth + 1);
+      print_ast(root->u.expr.lhs, depth + 1, false, pad);
       if (root->u.expr.op == LBrack || root->u.expr.op == Dot ||
           root->u.expr.op == Arrow)
-        print_ast(root->u.expr.rhs, depth + 1);
+        print_ast(root->u.expr.rhs, depth + 1, true, pad);
       break;
     }
     case InfixExpr: {
       printf("\033[1mInfixExpr\033[0m: %s\n", token_kind_map[root->u.expr.op]);
-      print_ast(root->u.expr.lhs, depth + 1);
+      print_ast(root->u.expr.lhs, depth + 1, false, pad);
       if (root->u.expr.op == Question) {
-        print_ast(root->u.expr.mhs, depth + 1);
+        print_ast(root->u.expr.mhs, depth + 1, false, pad);
       }
-      print_ast(root->u.expr.rhs, depth + 1);
+      print_ast(root->u.expr.rhs, depth + 1, true, pad);
       break;
     }
     case CommaExpr: {
       int i;
       puts("\033[1mCommaExpr\033[0m");
       for (i = 0; i < root->u.expr.mhs_len; i++) {
-        print_ast(root->u.expr.mhs + i, depth + 1);
+        print_ast(root->u.expr.mhs + i, depth + 1,
+                  i == root->u.expr.mhs_len - 1, pad);
       }
       break;
     }
     case CallExpr: {
       puts("\033[1mCallExpr\033[0m");
-      print_ast(root->u.expr.lhs, depth + 1);
+      print_ast(root->u.expr.lhs, depth + 1, root->u.expr.rhs == NULL, pad);
       if (root->u.expr.rhs) {
-        print_ast(root->u.expr.rhs, depth + 1);
+        print_ast(root->u.expr.rhs, depth + 1, true, pad);
       }
       break;
     }
@@ -311,7 +333,8 @@ void print_ast(ast_node_t *root, int depth) {
     int i;
     printf("\033[1mList\033[0m (len %d)\n", root->u.list.len);
     for (i = 0; i < root->u.list.len; i++) {
-      print_ast(root->u.list.nodes[i], depth + 1);
+      print_ast(root->u.list.nodes[i], depth + 1, i == root->u.list.len - 1,
+                pad);
     }
     break;
   }
@@ -1337,11 +1360,9 @@ void ast_list_append(ast_node_t *list, struct ast_node_t *item) {
 
 ast_node_t *ast_list_at(ast_node_t *list, int idx) {
   if (idx == list->u.list.len) {
-    puts("out of bounds, last item was");
-    print_ast(list->u.list.nodes[list->u.list.len - 1], 1);
+    puts("out of bounds");
     exit(1);
   }
-
   return list->u.list.nodes[idx];
 }
 

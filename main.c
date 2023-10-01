@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/_types/_null.h>
 
 #include "chocc.h"
 #include "cpp.h"
@@ -14,7 +15,6 @@ int main(int argc, char *argv[]) {
   ast_node_t **ast;
   ast_node_t **node;
   file *f;
-  int i;
 
   if (argc != 2) {
     puts("usage: chocc input.c");
@@ -29,16 +29,12 @@ int main(int argc, char *argv[]) {
   toks_len = cpp_replace(&toks, toks, toks_len);
   toks_len = filter_tokens(&toks, token_not_lf, toks, toks_len);
 
-  for (i = 0; i < toks_len; i++) {
-    print_token(toks[i]);
-  }
-
   parser.toks = toks;
   set_pos(&parser, 0);
   ast = parse(&parser);
 
   for (node = ast; *node != NULL; node++) {
-    print_ast(*node, 0);
+    print_ast(*node, 0, node + 1 == NULL, "");
   }
 
   return 0;
