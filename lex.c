@@ -192,6 +192,9 @@ token_t lex_next(file *f) {
         } else {
           return new_token(LShft, pos, "<<");
         }
+      } else if (c_peek == '=') {
+        next_char(f, NULL);
+        return new_token(Leq, pos, "<=");
       } else {
         return new_token(Lt, pos, "<");
       }
@@ -208,6 +211,9 @@ token_t lex_next(file *f) {
         } else {
           return new_token(RShft, pos, ">>");
         }
+      } else if (c_peek == '=') {
+        next_char(f, NULL);
+        return new_token(Geq, pos, ">=");
       } else {
         return new_token(Gt, pos, ">");
       }
