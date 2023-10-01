@@ -117,7 +117,7 @@ typedef enum {
 static const char *token_kind_map[] = {
     "Number",      "String",   "LBrace",     "RBrace",      "LBrack",
     "RBrack",      "LParen",   "RParen",     "Comma",       "Semi",
-    "Assn",        "PlusAssn", "MinusAssn",  "Sx  tarAssn", "SlashAssn",
+    "Assn",        "PlusAssn", "MinusAssn",  "StarAssn", "SlashAssn",
     "PercentAssn", "AmpAssn",  "BarAssn",    "CaretAssn",   "LShftAssn",
     "RShftAssn",   "PlusPlus", "MinusMinus", "Plus",        "Minus",
     "Star",        "Slash",    "Percent",    "Tilde",       "Amp",
