@@ -76,54 +76,54 @@ int func(int x) {
 AST:
 
 ```
-Decl fn: * ((Int[128], * * Char, * (Int[])) -> Int)
-Decl foo: * (Const Char -> * (Double -> * ((* Int)[3])))
-Decl x: Static (* * Const Int)[5]
+Decl fn: *((Int[128], **Char, *(Int[])) -> Int)
+Decl foo: *(Const Char -> *(Double -> *((*Int)[3])))
+Decl x: Static (** Const Int)[5]
 Decl v2: Struct vec2 { x: Int, y: Int }
- `-List (len 2)
-   |-Lit: 0
-   `-Lit: 1
+`-List (len 2)
+  |-Lit: 0
+  `-Lit: 1
 Decl colors: Typedef Enum Colors { Red = ?, Blue, Green }
 Decl func: Static (a: Int, b: Int, c: Volatile Int) -> Int
 FnDefn funcx: Int -> Int
- `-BlockStmt
-   |-Decl i: Int
-   | `-Lit: 0
-   |-Decl j: * Int
-   |-Decl k: Int
-   | `-Lit: 2
-   |-IfElseStmt
-   | |-InfixExpr: Eq
-   | | |-Ident: a
-   | | `-Ident: b
-   | |-ExprStmt
-   | | `-InfixExpr: Assn
-   | |   |-Ident: i
-   | |   `-InfixExpr: Question
-   | |     |-InfixExpr: Plus
-   | |     | |-Lit: 10
-   | |     | `-Lit: 1
-   | |     |-Lit: 1
-   | |     `-PrefixExpr: Minus
-   | |       `-Lit: 1
-   | `-IfStmt
-   |   |-Lit: 1
-   |   `-ExprStmt
-   |     `-InfixExpr: StarAssn
-   |       |-Ident: i
-   |       `-PostfixExpr: Dot
-   |         |-Ident: v2
-   |         `-Ident: x
-   |-WhileStmt
-   | |-Lit: 1
-   | `-BlockStmt
-   |   `-ExprStmt
-   |     `-InfixExpr: Plus
-   |       |-PostfixExpr: PlusPlus
-   |       | |-Ident: i
-   |       `-Ident: y
-   `-JumpStmt Return
-     `-Lit: 1
+`-BlockStmt
+  |-Decl i: Int
+  | `-Lit: 0
+  |-Decl j: *Int
+  |-Decl k: Int
+  | `-Lit: 2
+  |-IfElseStmt
+  | |-InfixExpr: Eq
+  | | |-Ident: a
+  | | `-Ident: b
+  | |-ExprStmt
+  | | `-InfixExpr: Assn
+  | |   |-Ident: i
+  | |   `-InfixExpr: Question
+  | |     |-InfixExpr: Plus
+  | |     | |-Lit: 10
+  | |     | `-Lit: 1
+  | |     |-Lit: 1
+  | |     `-PrefixExpr: Minus
+  | |       `-Lit: 1
+  | `-IfStmt
+  |   |-Lit: 1
+  |   `-ExprStmt
+  |     `-InfixExpr: StarAssn
+  |       |-Ident: i
+  |       `-PostfixExpr: Dot
+  |         |-Ident: v2
+  |         `-Ident: x
+  |-WhileStmt
+  | |-Lit: 1
+  | `-BlockStmt
+  |   `-ExprStmt
+  |     `-InfixExpr: Plus
+  |       |-PostfixExpr: PlusPlus
+  |       | |-Ident: i
+  |       `-Ident: y
+  `-JumpStmt Return
+    `-Lit: 1
 ```
 
 [^1]: Based mostly on _The C Programming Language_ 2E (K&R). Actual ISO/ANSI standards are hard to find.

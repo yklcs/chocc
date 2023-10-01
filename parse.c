@@ -12,24 +12,18 @@ void print_type(type *t) {
   if (t->store_class) {
     printf("%s ", token_kind_map[t->store_class]);
   }
-  if (t->is_const && t->kind != PtrT) {
+  if (t->is_const) {
     printf("Const ");
   }
-  if (t->is_volatile && t->kind != PtrT) {
+  if (t->is_volatile) {
     printf("Volatile ");
   }
 
   switch (t->kind) {
   case PtrT: {
     printf("*");
-    if (!t->is_const && !t->is_volatile) {
+    if (t->inner->is_const || t->inner->is_volatile) {
       printf(" ");
-    }
-    if (t->is_const) {
-      printf("Const ");
-    }
-    if (t->is_volatile) {
-      printf("Volatile ");
     }
 
     if (t->inner->kind == FnT || t->inner->kind == ArrT) {
@@ -145,7 +139,7 @@ void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
   int len_pad;
   char *pad_new;
 
-  for (i = 1; i < depth * 2; i++) {
+  for (i = 2; i < depth * 2; i++) {
     printf("%c", pad[i]);
   }
 
