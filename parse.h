@@ -107,10 +107,10 @@ typedef struct type {
   int fn_param_decls_cap;
 
   /* struct and union */
-  struct ast_node_t *struct_fields; /* ast_decl */
+  struct ast_node_t *struct_fields; /* ast_list(ast_decl) */
   /* enum */
-  struct ast_node_t *enum_idents; /* ast_ident */
-  struct ast_node_t *enum_exprs;  /* ast_expr */
+  struct ast_node_t *enum_idents; /* ast_list(ast_ident) */
+  struct ast_node_t *enum_exprs;  /* ast_list(ast_expr) */
 
   struct ast_node_t *name; /* ast_ident */
 
@@ -211,20 +211,18 @@ typedef enum ast_decl_spec_kind {
   TypeQual
 } ast_decl_spec_kind;
 
-typedef struct ast_decl_specs {
+typedef struct ast_decl_spec {
   ast_decl_spec_kind kind;
   token_kind_t tok;
 
   /* struct and union */
-  struct ast_node_t *struct_fields; /* ast_decl */
+  struct ast_node_t *struct_fields; /* ast_list(ast_decl) */
   /* enum */
-  struct ast_node_t *enum_idents; /* ast_ident */
-  struct ast_node_t *enum_exprs;  /* ast_expr */
+  struct ast_node_t *enum_idents; /* ast_list(ast_ident) */
+  struct ast_node_t *enum_exprs;  /* ast_list(ast_expr) */
 
   struct ast_node_t *name;
-
-  struct ast_decl_specs *next;
-} ast_decl_specs;
+} ast_decl_spec;
 
 struct ast_node_t *parse_decl_specs(parser_t *);
 bool is_decl_spec(token_t token);
@@ -296,7 +294,7 @@ typedef struct ast_decl {
 /*
  * Parses declarations, returning the head node and setting the tail node.
  */
-struct ast_node_t *parse_decl(parser_t *p, struct ast_node_t **tail);
+struct ast_node_t *parse_decl(parser_t *p);
 
 /*
  * decl consumes DeclSpecs and Decltor into a parsed declaration
@@ -372,13 +370,15 @@ typedef enum ast_stmt_kind {
 typedef struct ast_stmt {
   ast_stmt_kind kind;
 
-  struct ast_node_t *label; /* Ident, Tok(case)->Expr, Tok(default) */
+  struct ast_node_t *label; /* Ident, Tok(case), Tok(default) */
+  struct ast_node_t *case_expr;
 
   struct ast_node_t *init;
   struct ast_node_t *cond;
   struct ast_node_t *iter;
 
-  struct ast_node_t *inner; /* Stmt, Stmt->Stmt, Expr */
+  struct ast_node_t *inner;      /* Stmt, List, Expr */
+  struct ast_node_t *inner_else; /* Stmt, List, Expr */
 
   struct ast_node_t *jump; /* Goto, Continue, Break, Return */
 } ast_stmt;
@@ -402,7 +402,8 @@ typedef struct ast_list {
   struct ast_node_t **nodes;
 } ast_list;
 
-void ast_list_append(ast_list *list, struct ast_node_t *item);
+void ast_list_append(struct ast_node_t *list, struct ast_node_t *item);
+struct ast_node_t *ast_list_at(struct ast_node_t *list, int idx);
 
 /*
  * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
@@ -432,7 +433,7 @@ typedef struct ast_node_t {
   union data {
     ast_ident ident;
     ast_fn_defn fn_defn;
-    ast_decl_specs decl_specs;
+    ast_decl_spec decl_spec;
     ast_decltor decltor;
     ast_lit lit;
     ast_decl decl;

@@ -61,7 +61,8 @@ void print_type(type *t) {
   }
   case UnionT:
   case StructT: {
-    ast_node_t *decl = t->struct_fields;
+    ast_node_t *fields = t->struct_fields;
+    int i;
     if (t->kind == StructT) {
       printf("Struct ");
     } else {
@@ -71,12 +72,13 @@ void print_type(type *t) {
       printf("%s ", t->name->u.ident);
     }
     printf("{ ");
-    for (; decl; decl = decl->next) {
-      if (decl->u.decl.name) {
-        printf("%s: ", decl->u.decl.name->u.ident);
+    for (i = 0; i < fields->u.list.len; i++) {
+      ast_decl decl = ast_list_at(fields, i)->u.decl;
+      if (decl.name) {
+        printf("%s: ", decl.name->u.ident);
       }
-      print_type(decl->u.decl.type);
-      if (decl->next) {
+      print_type(decl.type);
+      if (i != fields->u.list.len - 1) {
         printf(", ");
       }
     }
@@ -86,20 +88,22 @@ void print_type(type *t) {
   case EnumT: {
     ast_node_t *idents = t->enum_idents;
     ast_node_t *exprs = t->enum_exprs;
+    int i;
     printf("Enum ");
     if (t->name) {
       printf("%s ", t->name->u.ident);
     }
     printf("{ ");
-    for (; idents; idents = idents->next) {
-      printf("%s", idents->u.ident);
-      if (exprs->u.expr.lhs || exprs->u.expr.mhs || exprs->u.expr.rhs) {
-        printf(" = ...");
+    for (i = 0; i < idents->u.list.len; i++) {
+      printf("%s", ast_list_at(idents, i)->u.ident);
+
+      if (ast_list_at(exprs, i)) {
+        printf(" = ?");
       }
-      if (idents->next) {
+
+      if (i != idents->u.list.len - 1) {
         printf(", ");
       }
-      exprs = exprs->next;
     }
     printf(" }");
     return;
@@ -139,8 +143,6 @@ void print_ast(ast_node_t *root, int depth) {
     break;
   }
   case Stmt: {
-    ast_node_t *item;
-
     switch (root->u.stmt.kind) {
     case LabelStmt: {
       printf("\033[1mLabelStmt\033[0m ");
@@ -149,16 +151,16 @@ void print_ast(ast_node_t *root, int depth) {
       } else {
         printf("%s:\n", token_kind_map[root->u.stmt.label->u.tok.kind]);
       }
-      if (root->u.stmt.label->next) {
-        print_ast(root->u.stmt.label, depth + 1);
+      if (root->u.stmt.case_expr) {
+        print_ast(root->u.stmt.case_expr, depth + 1);
       }
-      print_ast(root->u.stmt.inner, depth + 1);
       break;
     }
     case BlockStmt: {
+      int i;
       puts("\033[1mBlockStmt\033[0m");
-      for (item = root->u.stmt.inner; item; item = item->next) {
-        print_ast(item, depth + 1);
+      for (i = 0; i < root->u.stmt.inner->u.list.len; i++) {
+        print_ast(ast_list_at(root->u.stmt.inner, i), depth + 1);
       }
       break;
     }
@@ -177,7 +179,7 @@ void print_ast(ast_node_t *root, int depth) {
       puts("\033[1mIfElseStmt\033[0m");
       print_ast(root->u.stmt.cond, depth + 1);
       print_ast(root->u.stmt.inner, depth + 1);
-      print_ast(root->u.stmt.inner->next, depth + 1);
+      print_ast(root->u.stmt.inner_else, depth + 1);
       break;
     }
     case SwitchStmt: {
@@ -253,9 +255,6 @@ void print_ast(ast_node_t *root, int depth) {
     puts("");
     if (root->u.decl.init) {
       print_ast(root->u.decl.init, depth + 1);
-    }
-    if (root->next) {
-      print_ast(root->next, depth);
     }
     break;
   }
@@ -470,16 +469,17 @@ ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
   /* DeclSpecs form the innermost type */
 
   if (decl_specs) {
-    ast_decl_specs *specs = &decl_specs->u.decl_specs;
     token_kind_t store_class = 0;
     bool is_const = false;
     bool is_volatile = false;
+    int i;
 
     t = calloc(1, sizeof(type));
-    for (; specs; specs = specs->next) {
-      token_kind_t tok = specs->tok;
+    for (i = 0; i < decl_specs->u.list.len; i++) {
+      ast_decl_spec specs = ast_list_at(decl_specs, i)->u.decl_spec;
+      token_kind_t tok = specs.tok;
 
-      switch (specs->kind) {
+      switch (specs.kind) {
       case StoreClass: {
         store_class = tok;
         continue;
@@ -511,21 +511,21 @@ ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
       }
       case Struct: {
         t->kind = StructT;
-        t->name = specs->name;
-        t->struct_fields = specs->struct_fields;
+        t->name = specs.name;
+        t->struct_fields = specs.struct_fields;
         break;
       }
       case Union: {
         t->kind = UnionT;
-        t->name = specs->name;
-        t->struct_fields = specs->struct_fields;
+        t->name = specs.name;
+        t->struct_fields = specs.struct_fields;
         break;
       }
       case Enum: {
         t->kind = EnumT;
-        t->name = specs->name;
-        t->enum_idents = specs->enum_idents;
-        t->enum_exprs = specs->enum_exprs;
+        t->name = specs.name;
+        t->enum_idents = specs.enum_idents;
+        t->enum_exprs = specs.enum_exprs;
         break;
       }
       default:
@@ -582,17 +582,17 @@ ast_node_t *parse_fn_defn(parser_t *p) {
 }
 
 ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
-  ast_node_t *node = new_node(DeclSpecs);
-  ast_decl_specs *cur = &node->u.decl_specs;
+  ast_node_t *specs = new_node(List);
 
   while (is_decl_spec(p->tok)) {
-    ast_decl_specs *decl_specs = calloc(1, sizeof(ast_decl_specs));
-    decl_specs->tok = p->kind;
+    ast_node_t *node = new_node(DeclSpecs);
+    ast_decl_spec *spec = &node->u.decl_spec;
+    spec->tok = p->kind;
 
     switch (p->kind) {
     case Const:
     case Volatile: {
-      decl_specs->kind = TypeQual;
+      spec->kind = TypeQual;
       advance(p);
       break;
     }
@@ -601,7 +601,7 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
     case Static:
     case Auto:
     case Register: {
-      decl_specs->kind = StoreClass;
+      spec->kind = StoreClass;
       advance(p);
       break;
     }
@@ -614,74 +614,71 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
     case Double:
     case Signed:
     case Unsigned: {
-      decl_specs->kind = TypeSpec;
+      spec->kind = TypeSpec;
       advance(p);
       break;
     }
     case Struct:
     case Union: {
-      decl_specs->kind = TypeSpec;
+      spec->kind = TypeSpec;
       advance(p);
       if (p->kind == Id) {
-        decl_specs->name = parse_ident(p);
+        spec->name = parse_ident(p);
       }
       if (p->kind == LBrace) {
-        ast_node_t *field_head;
-        ast_node_t *field_tail;
+        ast_node_t *ls;
         expect(p, LBrace);
-
-        field_head = parse_decl(p, &field_tail);
-        decl_specs->struct_fields = field_head;
-
-        for (; p->kind != RBrace;) {
-          ast_node_t *field_tail_new;
-          field_head = parse_decl(p, &field_tail_new);
-          field_tail->next = field_head;
-          field_tail = field_tail_new;
-        }
-
-        field_tail->next = NULL;
+        ls = parse_decl(p);
+        spec->struct_fields = ls;
         expect(p, RBrace);
       }
       break;
     }
     case Enum: {
-      decl_specs->kind = TypeSpec;
+      spec->kind = TypeSpec;
       advance(p);
       if (p->kind == Id) {
-        decl_specs->name = parse_ident(p);
+        spec->name = parse_ident(p);
       }
-      if (p->kind == LBrace) {
-        ast_node_t *cur_ident;
-        ast_node_t *cur_expr = decl_specs->enum_exprs = new_node(Expr);
 
+      if (!spec->name) {
         expect(p, LBrace);
-        cur_ident = decl_specs->enum_idents = parse_ident(p);
-        if (p->kind == Assn) {
-          advance(p);
-          cur_expr = decl_specs->enum_exprs = expr(p, 0);
+      }
+
+      if (p->kind == LBrace || !spec->name) {
+        ast_node_t *ls_id = new_node(List);
+        ast_node_t *ls_ex = new_node(List);
+
+        if (spec->name) {
+          expect(p, LBrace);
         }
 
-        for (; p->kind == Comma;) {
-          ast_node_t *ident;
-          ast_node_t *expr = new_node(Expr);
-
-          expect(p, Comma);
-          ident = parse_ident(p);
+        for (; p->kind != RBrace;) {
+          ast_node_t *id = parse_ident(p);
+          ast_node_t *ex = NULL;
           if (p->kind == Assn) {
             advance(p);
-            expr = parse_expr(p);
+            ex = expr(p, 0);
+          }
+          ast_list_append(ls_id, id);
+          if (ex) {
+            ast_list_append(ls_ex, ex);
+          } else {
+            ast_list_append(ls_ex, NULL);
           }
 
-          cur_ident->next = ident;
-          cur_expr->next = expr;
-          cur_ident = ident;
-          cur_expr = expr;
+          if (p->kind != Comma) {
+            break;
+          }
+          expect(p, Comma);
         }
-        cur_ident->next = NULL;
-        cur_expr->next = NULL;
+
         expect(p, RBrace);
+
+        spec->enum_idents = ls_id;
+        spec->enum_exprs = ls_ex;
       }
+
       break;
     }
     default:
@@ -689,12 +686,10 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
       throw(p);
     }
 
-    cur->next = decl_specs;
-    cur = decl_specs;
+    ast_list_append(specs, node);
   }
-  cur->next = NULL;
 
-  return node;
+  return specs;
 }
 
 ast_node_t *parse_lit(parser_t *p) {
@@ -858,12 +853,13 @@ ast_node_t *parse_stmt(parser_t *p) {
 
 ast_node_t *parse_stmt_label(parser_t *p) {
   ast_node_t *node = new_node(Stmt);
+  int pos;
 
   if (p->kind == Id && peek(p, 1).kind == Colon) {
     node->u.stmt.label = parse_ident(p);
   } else if (p->kind == Case) {
     node->u.stmt.label = parse_tok(p);
-    node->u.stmt.label->next = parse_expr(p);
+    node->u.stmt.case_expr = parse_expr(p);
   } else if (p->kind == Default) {
     node->u.stmt.label = parse_tok(p);
   } else {
@@ -873,7 +869,10 @@ ast_node_t *parse_stmt_label(parser_t *p) {
 
   expect(p, Colon);
 
-  node->u.stmt.inner = parse_stmt(p);
+  /* Just make sure the following statement is there without consuming it */
+  pos = p->pos;
+  parse_stmt(p);
+  set_pos(p, pos);
   node->u.stmt.kind = LabelStmt;
 
   return node;
@@ -882,34 +881,26 @@ ast_node_t *parse_stmt_label(parser_t *p) {
 ast_node_t *parse_stmt_block(parser_t *p) {
   ast_node_t *node = new_node(Stmt);
 
-  ast_node_t *item_head = NULL;
-  ast_node_t *item_tail = NULL;
+  ast_node_t *item = NULL;
+  ast_node_t *ls = new_node(List);
+  node->u.stmt.inner = ls;
 
   expect(p, LBrace);
 
-  if (is_decl_spec(p->tok)) {
-    item_head = parse_decl(p, &item_tail);
-  } else {
-    item_head = parse_stmt(p);
-    item_tail = item_head;
-  }
-  node->u.stmt.inner = item_head;
-
   for (; p->tok.kind != RBrace;) { /* allow mixed decls and stmts? */
-    ast_node_t *item_tail_new;
-
     if (is_decl_spec(p->tok)) {
-      item_head = parse_decl(p, &item_tail_new);
+      int i;
+      ast_node_t *decls = parse_decl(p);
+      for (i = 0; i < decls->u.list.len; i++) {
+        item = ast_list_at(decls, i);
+        ast_list_append(ls, item);
+      }
     } else {
-      item_head = parse_stmt(p);
-      item_tail_new = item_head;
+      item = parse_stmt(p);
+      ast_list_append(ls, item);
     }
-
-    item_tail->next = item_head;
-    item_tail = item_tail_new;
   }
 
-  item_tail->next = NULL;
   expect(p, RBrace);
 
   node->u.stmt.kind = BlockStmt;
@@ -944,7 +935,7 @@ ast_node_t *parse_stmt_branch(parser_t *p) {
   if (p->kind == Else) {
     node->u.stmt.kind = IfElseStmt;
     advance(p);
-    node->u.stmt.inner->next = parse_stmt(p);
+    node->u.stmt.inner_else = parse_stmt(p);
   }
 
   return node;
@@ -1035,7 +1026,7 @@ ast_node_t *parse_init(parser_t *p) {
     advance(p);
 
     for (;; expect(p, Comma)) {
-      ast_list_append(&ls->u.list, parse_init(p));
+      ast_list_append(ls, parse_init(p));
       if (p->kind != Comma) {
         break;
       }
@@ -1048,36 +1039,31 @@ ast_node_t *parse_init(parser_t *p) {
   }
 }
 
-ast_node_t *parse_decl(parser_t *p, ast_node_t **tail) {
-  ast_node_t *node = new_node(Decl);
+ast_node_t *parse_decl(parser_t *p) {
+  ast_node_t *node = new_node(List);
   ast_node_t *decl_specs = parse_decl_specs(p);
-  ast_node_t *old = node;
-  node->u.decl = *decl(decl_specs, parse_decltor(p));
+
+  ast_list_append(node, new_node(Decl));
+  ast_list_at(node, 0)->u.decl = *decl(decl_specs, parse_decltor(p));
 
   if (p->kind == Assn) {
     expect(p, Assn);
-    node->u.decl.init = parse_init(p);
+    ast_list_at(node, 0)->u.decl.init = parse_init(p);
   }
 
   for (; p->kind == Comma;) {
     ast_node_t *new = new_node(Decl);
     expect(p, Comma);
     new->u.decl = *decl(decl_specs, parse_decltor(p));
-
     if (p->kind == Assn) {
       expect(p, Assn);
       new->u.decl.init = parse_init(p);
     }
-
-    old->next = new;
-    old = new;
-  }
-
-  if (tail) {
-    *tail = old;
+    ast_list_append(node, new);
   }
 
   expect(p, Semi);
+
   return node;
 }
 
@@ -1339,20 +1325,31 @@ ast_node_t *parse_expr(parser_t *p) {
   return root_comma;
 }
 
-void ast_list_append(ast_list *list, struct ast_node_t *item) {
-  if (list->len >= list->cap) {
-    list->cap *= 2;
-    list->nodes = realloc(list->nodes, sizeof(ast_node_t *));
+void ast_list_append(ast_node_t *list, struct ast_node_t *item) {
+  if (list->u.list.len >= list->u.list.cap) {
+    list->u.list.cap *= 2;
+    list->u.list.nodes =
+        realloc(list->u.list.nodes, sizeof(ast_node_t *) * list->u.list.cap);
   }
 
-  list->nodes[list->len++] = item;
+  list->u.list.nodes[list->u.list.len++] = item;
+}
+
+ast_node_t *ast_list_at(ast_node_t *list, int idx) {
+  if (idx == list->u.list.len) {
+    puts("out of bounds, last item was");
+    print_ast(list->u.list.nodes[list->u.list.len - 1], 1);
+    exit(1);
+  }
+
+  return list->u.list.nodes[idx];
 }
 
 ast_node_t **parse(parser_t *p) {
-  ast_node_t **nodes = calloc(128, sizeof(ast_node_t *));
+  ast_node_t **nodes = calloc(2048, sizeof(ast_node_t *));
 
   int i;
-  for (i = 0; p->kind != Eof; i++) {
+  for (i = 0; p->kind != Eof;) {
     ast_node_t *node = NULL;
     int pos = p->pos;
 
@@ -1362,17 +1359,21 @@ ast_node_t **parse(parser_t *p) {
     if (p->kind == LBrace) { /* FnDefn */
       set_pos(p, pos);
       node = parse_fn_defn(p);
+      nodes[i++] = node;
     } else if (p->kind == Semi || p->kind == Comma ||
                p->kind == Assn) { /* Decl */
+      ast_node_t *decls;
+
       set_pos(p, pos);
-      node = parse_decl(p, NULL);
+      decls = parse_decl(p);
+      memcpy(nodes + i, decls->u.list.nodes,
+             decls->u.list.len * sizeof(token_t *));
+      i += decls->u.list.len;
     } else {
       printf("unexpected token %s (%s)\n", p->tok.text,
              token_kind_map[p->kind]);
       throw(p);
     }
-
-    nodes[i] = node;
   }
   nodes[i] = NULL;
 

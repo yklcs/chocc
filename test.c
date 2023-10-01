@@ -35,6 +35,18 @@ int xx(char c) {
     break;
   }
 
+  switch (a) {
+  case 1:
+    f(1);
+    f(2);
+    break;
+  case 2:
+    f(3);
+    break;
+  default:
+    return;
+  }
+
   x = 1;
   int *arr[5];
   c /= a > b ? (5 % 2) && st.member : x[1];
