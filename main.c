@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/_types/_null.h>
 
 #include "chocc.h"
 #include "cpp.h"
