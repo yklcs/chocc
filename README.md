@@ -76,20 +76,20 @@ int func(int x) {
 AST:
 
 ```
-Decl fn: *((Int[128], **Char, *(Int[])) -> Int)
-Decl foo: *((Const Char) -> *((Double) -> *(*Int[3])))
-Decl x: Static Const **Int[5]
+Decl fn: * ((Int[128], * * Char, * (Int[])) -> Int)
+Decl foo: * (Const Char -> * (Double -> * ((* Int)[3])))
+Decl x: Static (* * Const Int)[5]
 Decl v2: Struct vec2 { x: Int, y: Int }
  `-List (len 2)
    |-Lit: 0
    `-Lit: 1
 Decl colors: Typedef Enum Colors { Red = ?, Blue, Green }
 Decl func: Static (a: Int, b: Int, c: Volatile Int) -> Int
-FnDefn func(x: Int) -> Int
+FnDefn funcx: Int -> Int
  `-BlockStmt
    |-Decl i: Int
    | `-Lit: 0
-   |-Decl j: *Int
+   |-Decl j: * Int
    |-Decl k: Int
    | `-Lit: 2
    |-IfElseStmt
