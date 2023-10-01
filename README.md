@@ -1,15 +1,46 @@
 # chocc
 
-A C compiler from scratch 🍫
+An ANSI C compiler in ANSI C.
 
 ---
 
-The goal is to write a self hosting ANSI C (C89/ISO C90) compiler in ANSI C.
-Everything is hand written without generators.
-The parser uses recursive descent.
+The goal is a self hosting ANSI C (C89/ISO C90[^1]) compiler in ANSI C without external dependencies.
+The main functionality of the frontend is complete.
 Tree-walking interpretation and WebAssembly codegen backends are planned.
+The design is as follows.
 
-## Status
+[A character stream](./io.c) is created for each source code file.
+The physical location (line/column) of each character is stored together with the character as the physical location and logical location of characters may differ during translation (e.g. due to newline splicing).
+
+[Tokenization and lexing](./lex.c) are performed character-by-character with a pseudo finite state machine. Some whitespace characters are lexed into tokens as they are significant during preprocessing.
+
+[Preprocessing](./cpp.c) is performed on the lexer output.
+After preprocessing, preprocessing directive tokens and whitespace tokens are removed.
+
+[The parser](./parse.c) is ad-hoc with a recursive descent core.
+Top down operator precendence ("Pratt") parsing[^2][^3] is used for expressions.
+Naive backtracking is also used in some parts.
+The parser outputs AST nodes represented as tagged unions.
+Types are represented by a tree, and are constructed from declaration specifiers and declarators.
+
+Above is the extent of the current implementation.
+No efforts at optimization have been made.
+Allocated memory is not freed.
+
+## Todo
+
+- Implement all preprocessor directives
+- Lex/parse floating and non-decimal radix literals
+- Concatenate adjacent string literals
+- Symbol table and scoping
+- Evaluate integer constant expressions at compile time
+- Lvalue semantic analysis
+- Type analysis
+- Tree walking interpretation
+- WebAssembly codegen
+- WebAssembly runtime
+
+## Example
 
 Input:
 
@@ -78,7 +109,7 @@ FnDefn func(x: Int) -> Int
    | `-IfStmt
    |   |-Lit: 1
    |   `-ExprStmt
-   |     `-InfixExpr: Sx  tarAssn
+   |     `-InfixExpr: StarAssn
    |       |-Ident: i
    |       `-PostfixExpr: Dot
    |         |-Ident: v2
@@ -95,11 +126,6 @@ FnDefn func(x: Int) -> Int
      `-Lit: 1
 ```
 
-## Steps
-
-1. Lex C
-2. Parse C ← _currently here_
-3. Implement preprocessor
-4. Generate AST from parse tree
-5. Create a tree-walking interpreter backend
-6. Create a WebAssembly codegen backend
+[^1]: Based mostly on _The C Programming Language_ 2E (K&R). Actual ISO/ANSI standards are hard to find.
+[^2]: Vaughn Pratt, _Top Down Operator Precendence_ (1973).
+[^3]: <https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html>
