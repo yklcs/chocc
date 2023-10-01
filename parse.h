@@ -263,6 +263,8 @@ typedef enum ast_decltor_kind_t {
 typedef struct ast_decltor {
   struct ast_node_t *inner; /* ast_ident | ast_decltor */
   ast_decltor_kind_t kind;
+  bool is_const;
+  bool is_volatile;
   union {
     struct ast_node_t *arr_size; /* ast_lit */
     struct {

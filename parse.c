@@ -12,16 +12,26 @@ void print_type(type *t) {
   if (t->store_class) {
     printf("%s ", token_kind_map[t->store_class]);
   }
-  if (t->is_const) {
+  if (t->is_const && t->kind != PtrT) {
     printf("Const ");
   }
-  if (t->is_volatile) {
+  if (t->is_volatile && t->kind != PtrT) {
     printf("Volatile ");
   }
 
   switch (t->kind) {
   case PtrT: {
     printf("*");
+    if (!t->is_const && !t->is_volatile) {
+      printf(" ");
+    }
+    if (t->is_const) {
+      printf("Const ");
+    }
+    if (t->is_volatile) {
+      printf("Volatile ");
+    }
+
     if (t->inner->kind == FnT || t->inner->kind == ArrT) {
       printf("(");
     }
@@ -32,7 +42,13 @@ void print_type(type *t) {
     return;
   }
   case ArrT: {
+    if (t->inner->kind == PtrT) {
+      printf("(");
+    }
     print_type(t->inner);
+    if (t->inner->kind == PtrT) {
+      printf(")");
+    }
     printf("[");
     if (t->arr_size) {
       printf("%d", t->arr_size);
@@ -42,7 +58,9 @@ void print_type(type *t) {
   }
   case FnT: {
     int i;
-    printf("(");
+    if (t->fn_param_decls_len != 1) {
+      printf("(");
+    }
     for (i = 0; i < t->fn_param_decls_len; i++) {
       ast_node_t *decl = t->fn_param_decls + i;
       if (decl->u.decl.name) {
@@ -53,7 +71,10 @@ void print_type(type *t) {
         printf(", ");
       }
     }
-    printf(") -> ");
+    if (t->fn_param_decls_len != 1) {
+      printf(")");
+    }
+    printf(" -> ");
     print_type(t->inner);
     return;
   }
@@ -403,171 +424,20 @@ ast_node_t *new_node(ast_node_kind_t kind) {
   return node;
 }
 
-ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
-  ast_decl *d = calloc(1, sizeof(ast_decl));
-  type *t = NULL;
+ast_node_t *parse_lit(parser_t *p) {
+  ast_node_t *node = new_node(Lit);
 
-  /* Since types are outside-in and decltors are inside-out, decltors are
-   * inverted recursively with a stack */
-
-  ast_node_t **stack =
-      calloc(256, sizeof(ast_node_t *)); /* worry about size later */
-  ast_node_t **stack_top = stack;
-  ast_node_t *cur;
-  type *prev = NULL;
-
-  for (cur = decltor; cur->kind == Decltor && cur->u.decltor.inner;
-       cur = cur->u.decltor.inner) {
-    if (cur->u.decltor.kind != AbstDecltor) {
-      *stack_top++ = cur;
-    }
+  if (p->kind == Number) {
+    node->u.lit.kind = DecLit;
+    node->u.lit.integer = atoi(p->tok.text);
+  } else if (p->kind == String) {
+    node->u.lit.kind = StrLit;
+    node->u.lit.string = calloc(strlen(p->tok.text) - 1, 1);
+    strncpy(node->u.lit.string, p->tok.text + 1, strlen(p->tok.text) - 2);
   }
 
-  for (; stack < stack_top;) {
-    ast_node_t *top = *--stack_top;
-    t = calloc(1, sizeof(type));
-
-    switch (top->u.decltor.kind) {
-    case IdentDecltor: {
-      d->name = top->u.decltor.inner;
-      break;
-    }
-    case PtrDecltor: {
-      t->kind = PtrT;
-      if (prev) {
-        prev->inner = t;
-      }
-      break;
-    }
-    case ArrDecltor: {
-      t->kind = ArrT;
-      if (top->u.decltor.data.arr_size) {
-        t->arr_size = top->u.decltor.data.arr_size->u.lit.integer;
-      } else {
-        t->arr_size = 0;
-      }
-      if (prev) {
-        prev->inner = t;
-      }
-      break;
-    }
-    case FnDecltor: {
-      int i;
-      t->kind = FnT;
-      for (i = 0; i < top->u.decltor.data.params.decl_specs_len; i++) {
-        ast_node_t *param = new_node(Decl);
-        param->u.decl = *decl(top->u.decltor.data.params.decl_specs + i,
-                              top->u.decltor.data.params.decltors + i);
-        append_node(&t->fn_param_decls, &t->fn_param_decls_len,
-                    &t->fn_param_decls_cap, *param);
-      }
-      if (top->u.decltor.data.params.decl_specs_len == 0) {
-        t->fn_param_decls = new_node(Decl);
-        t->fn_param_decls->u.decl.type = calloc(1, sizeof(type));
-        t->fn_param_decls->u.decl.type->kind = VoidT;
-        t->fn_param_decls_len = 1;
-      }
-
-      if (prev) {
-        prev->inner = t;
-      }
-      break;
-    }
-    case GroupDecltor: {
-      t = prev;
-      break;
-    }
-    default:
-      break;
-    };
-
-    if (!d->type && top->u.decltor.kind != IdentDecltor &&
-        top->u.decltor.kind != AbstDecltor) {
-      d->type = t;
-    }
-
-    prev = t;
-  }
-
-  /* DeclSpecs form the innermost type */
-
-  if (decl_specs) {
-    token_kind_t store_class = 0;
-    bool is_const = false;
-    bool is_volatile = false;
-    int i;
-
-    t = calloc(1, sizeof(type));
-    for (i = 0; i < decl_specs->u.list.len; i++) {
-      ast_decl_spec specs = ast_list_at(decl_specs, i)->u.decl_spec;
-      token_kind_t tok = specs.tok;
-
-      switch (specs.kind) {
-      case StoreClass: {
-        store_class = tok;
-        continue;
-      }
-      case TypeQual: {
-        if (tok == Const) {
-          is_const = true;
-        } else {
-          is_volatile = true;
-        }
-        continue;
-      }
-      case TypeSpec:
-        break;
-      }
-
-      switch (tok) {
-      case Char:
-      case Int:
-      case Float:
-      case Double: {
-        t->kind = NumericT;
-        t->numeric.base = tok;
-        break;
-      }
-      case Void: {
-        t->kind = VoidT;
-        break;
-      }
-      case Struct: {
-        t->kind = StructT;
-        t->name = specs.name;
-        t->struct_fields = specs.struct_fields;
-        break;
-      }
-      case Union: {
-        t->kind = UnionT;
-        t->name = specs.name;
-        t->struct_fields = specs.struct_fields;
-        break;
-      }
-      case Enum: {
-        t->kind = EnumT;
-        t->name = specs.name;
-        t->enum_idents = specs.enum_idents;
-        t->enum_exprs = specs.enum_exprs;
-        break;
-      }
-      default:
-        break;
-      }
-    }
-
-    if (prev) {
-      prev->inner = t;
-    }
-    if (!d->type) {
-      d->type = t;
-    }
-    d->type->store_class = store_class;
-    d->type->is_const = is_const;
-    d->type->is_volatile = is_volatile;
-  }
-
-  return d;
+  advance(p);
+  return node;
 }
 
 ast_node_t *parse_ident(parser_t *p) {
@@ -715,22 +585,6 @@ ast_node_t *parse_decl_specs(parser_t *p) { /* -> ast_decl_specs */
   return specs;
 }
 
-ast_node_t *parse_lit(parser_t *p) {
-  ast_node_t *node = new_node(Lit);
-
-  if (p->kind == Number) {
-    node->u.lit.kind = DecLit;
-    node->u.lit.integer = atoi(p->tok.text);
-  } else if (p->kind == String) {
-    node->u.lit.kind = StrLit;
-    node->u.lit.string = calloc(strlen(p->tok.text) - 1, 1);
-    strncpy(node->u.lit.string, p->tok.text + 1, strlen(p->tok.text) - 2);
-  }
-
-  advance(p);
-  return node;
-}
-
 ast_node_t *parse_decltor(parser_t *p) { /* -> ast_decltor */
   ast_node_t *node = new_node(Decltor);
   ast_node_t *inner = NULL;
@@ -740,6 +594,23 @@ ast_node_t *parse_decltor(parser_t *p) { /* -> ast_decltor */
   if (p->kind == Star) {
     decltor->kind = PtrDecltor;
     expect(p, Star);
+
+    if (p->kind == Const) {
+      decltor->is_const = true;
+      advance(p);
+      if (p->kind == Volatile) {
+        decltor->is_volatile = true;
+        advance(p);
+      }
+    } else if (p->kind == Volatile) {
+      decltor->is_volatile = true;
+      advance(p);
+      if (p->kind == Const) {
+        decltor->is_const = true;
+        advance(p);
+      }
+    }
+
     inner = parse_decltor(p);
     decltor->inner = inner;
     return node;
@@ -833,6 +704,175 @@ bool is_decl_spec(token_t token) {
   default:
     return false;
   }
+}
+
+ast_decl *decl(struct ast_node_t *decl_specs, struct ast_node_t *decltor) {
+  ast_decl *d = calloc(1, sizeof(ast_decl));
+  type *t = NULL;
+
+  /* Since types are outside-in and decltors are inside-out, decltors are
+   * inverted recursively with a stack */
+
+  ast_node_t **stack =
+      calloc(256, sizeof(ast_node_t *)); /* worry about size later */
+  ast_node_t **stack_top = stack;
+  ast_node_t *cur;
+  type *prev = NULL;
+
+  for (cur = decltor; cur->kind == Decltor && cur->u.decltor.inner;
+       cur = cur->u.decltor.inner) {
+    if (cur->u.decltor.kind != AbstDecltor) {
+      *stack_top++ = cur;
+    }
+  }
+
+  for (; stack < stack_top;) {
+    ast_node_t *top = *--stack_top;
+    t = calloc(1, sizeof(type));
+
+    switch (top->u.decltor.kind) {
+    case IdentDecltor: {
+      d->name = top->u.decltor.inner;
+      break;
+    }
+    case PtrDecltor: {
+      t->kind = PtrT;
+      t->is_const = top->u.decltor.is_const;
+      t->is_volatile = top->u.decltor.is_volatile;
+      if (prev) {
+        prev->inner = t;
+      }
+      break;
+    }
+    case ArrDecltor: {
+      t->kind = ArrT;
+      if (top->u.decltor.data.arr_size) {
+        t->arr_size = top->u.decltor.data.arr_size->u.lit.integer;
+      } else {
+        t->arr_size = 0;
+      }
+      if (prev) {
+        prev->inner = t;
+      }
+      break;
+    }
+    case FnDecltor: {
+      int i;
+      t->kind = FnT;
+      for (i = 0; i < top->u.decltor.data.params.decl_specs_len; i++) {
+        ast_node_t *param = new_node(Decl);
+        param->u.decl = *decl(top->u.decltor.data.params.decl_specs + i,
+                              top->u.decltor.data.params.decltors + i);
+        append_node(&t->fn_param_decls, &t->fn_param_decls_len,
+                    &t->fn_param_decls_cap, *param);
+      }
+      if (top->u.decltor.data.params.decl_specs_len == 0) {
+        t->fn_param_decls = new_node(Decl);
+        t->fn_param_decls->u.decl.type = calloc(1, sizeof(type));
+        t->fn_param_decls->u.decl.type->kind = VoidT;
+        t->fn_param_decls_len = 1;
+      }
+
+      if (prev) {
+        prev->inner = t;
+      }
+      break;
+    }
+    case GroupDecltor: {
+      t = prev;
+      break;
+    }
+    default:
+      break;
+    };
+
+    if (!d->type && top->u.decltor.kind != IdentDecltor &&
+        top->u.decltor.kind != AbstDecltor) {
+      d->type = t;
+    }
+
+    prev = t;
+  }
+
+  /* DeclSpecs form the innermost type */
+
+  if (decl_specs) {
+    token_kind_t store_class = 0;
+    bool is_const = false;
+    bool is_volatile = false;
+    int i;
+
+    t = calloc(1, sizeof(type));
+    for (i = 0; i < decl_specs->u.list.len; i++) {
+      ast_decl_spec specs = ast_list_at(decl_specs, i)->u.decl_spec;
+      token_kind_t tok = specs.tok;
+
+      switch (specs.kind) {
+      case StoreClass: {
+        store_class = tok;
+        continue;
+      }
+      case TypeQual: {
+        if (tok == Const) {
+          is_const = true;
+        } else {
+          is_volatile = true;
+        }
+        continue;
+      }
+      case TypeSpec:
+        break;
+      }
+
+      switch (tok) {
+      case Char:
+      case Int:
+      case Float:
+      case Double: {
+        t->kind = NumericT;
+        t->numeric.base = tok;
+        break;
+      }
+      case Void: {
+        t->kind = VoidT;
+        break;
+      }
+      case Struct: {
+        t->kind = StructT;
+        t->name = specs.name;
+        t->struct_fields = specs.struct_fields;
+        break;
+      }
+      case Union: {
+        t->kind = UnionT;
+        t->name = specs.name;
+        t->struct_fields = specs.struct_fields;
+        break;
+      }
+      case Enum: {
+        t->kind = EnumT;
+        t->name = specs.name;
+        t->enum_idents = specs.enum_idents;
+        t->enum_exprs = specs.enum_exprs;
+        break;
+      }
+      default:
+        break;
+      }
+    }
+
+    if (prev) {
+      prev->inner = t;
+    }
+    if (!d->type) {
+      d->type = t;
+    }
+    d->type->store_class = store_class;
+    t->is_const = is_const;
+    t->is_volatile = is_volatile;
+  }
+
+  return d;
 }
 
 ast_node_t *parse_stmt(parser_t *p) {
