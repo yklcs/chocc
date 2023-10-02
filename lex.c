@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_types/_null.h>
 
 token_t new_token(token_kind_t kind, loc pos, const char *text) {
   token_t tok = {0};
@@ -231,13 +232,21 @@ token_t lex_next(file *f) {
 
     if (c == '"') {
       char text[1024] = {0};
-
       int i;
       text[0] = '"';
       c = next_char(f, NULL);
       for (i = 1; c != '"'; i++) {
+        if (c == '\n') {
+          printf("malformed string literal at %d:%d", pos.ln, pos.col);
+          exit(1);
+        }
         text[i] = c;
         c = next_char(f, NULL);
+        if (text[i] == '\\' && c == '"') {
+          /* escaped quote */
+          text[++i] = c;
+          c = next_char(f, NULL);
+        }
       }
       text[i] = '"';
 
