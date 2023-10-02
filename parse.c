@@ -424,13 +424,25 @@ ast_node_t *parse_lit(parser_t *p) {
   if (p->kind == Number) {
     node->u.lit.kind = DecLit;
     node->u.lit.integer = atoi(p->tok.text);
+    advance(p);
   } else if (p->kind == String) {
+    int len = strlen(p->tok.text) - 2;
+    char *str = calloc(len + 1, 1);
     node->u.lit.kind = StrLit;
-    node->u.lit.string = calloc(strlen(p->tok.text) - 1, 1);
-    strncpy(node->u.lit.string, p->tok.text + 1, strlen(p->tok.text) - 2);
+    strncpy(str, p->tok.text + 1, len);
+    advance(p);
+
+    for (; p->kind == String;) {
+      int len_new = strlen(p->tok.text) - 2;
+      str = realloc(str, len + len_new + 1);
+      strncpy(str + len, p->tok.text + 1, len_new);
+      str[len += len_new] = 0;
+      advance(p);
+    }
+
+    node->u.lit.string = str;
   }
 
-  advance(p);
   return node;
 }
 
