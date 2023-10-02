@@ -168,7 +168,7 @@ typedef struct ast_lit {
   long int integer;
   long double floating;
   char *string;
-  char character;
+  char *character;
 
   bool is_unsigned;
   bool is_long;

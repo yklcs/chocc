@@ -2,11 +2,9 @@
 #include "chocc.h"
 #include "lex.h"
 
-#include <malloc/_malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/_types/_null.h>
 
 void print_type(type *t) {
   if (t->store_class) {
@@ -170,7 +168,7 @@ void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
   case FnDefn: {
     printf("\033[1mFnDefn\033[0m ");
     if (root->u.fn_defn.decl->name) {
-      printf("%s", root->u.fn_defn.decl->name->u.ident);
+      printf("%s ", root->u.fn_defn.decl->name->u.ident);
     }
     print_type(root->u.fn_defn.decl->type);
     puts("");
@@ -273,6 +271,10 @@ void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
     }
     case StrLit: {
       printf("\"%s\"\n", root->u.lit.string);
+      break;
+    }
+    case CharLit: {
+      printf("'%s'\n", root->u.lit.character);
       break;
     }
     default: {
@@ -441,6 +443,13 @@ ast_node_t *parse_lit(parser_t *p) {
     }
 
     node->u.lit.string = str;
+  } else if (p->kind == Character) {
+    int len = strlen(p->tok.text) - 2;
+    char *str = calloc(len + 1, 1);
+    node->u.lit.kind = CharLit;
+    strncpy(str, p->tok.text + 1, len);
+    node->u.lit.character = str;
+    advance(p);
   }
 
   return node;
@@ -1152,6 +1161,7 @@ ast_node_t *expr(parser_t *p, int min_bp) {
     break;
   }
   case Number:
+  case Character:
   case String: {
     lhs = parse_lit(p);
     break;

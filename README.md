@@ -31,7 +31,6 @@ Allocated memory is not freed.
 
 - Implement all preprocessor directives
 - Lex/parse floating and non-decimal radix literals
-- Concatenate adjacent string literals
 - Symbol table and scoping
 - Evaluate integer constant expressions at compile time
 - Lvalue semantic analysis

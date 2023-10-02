@@ -266,6 +266,30 @@ token_t lex_next(file *f) {
       return new_token(Directive, pos, text);
     }
 
+    if (c == '\'') {
+      char text[16] = {0};
+      int i = 0;
+
+      text[0] = '\'';
+      c = next_char(f, NULL);
+      for (i = 1; c != '\''; i++) {
+        if (c == '\n') {
+          printf("malformed character literal at %d:%d", pos.ln, pos.col);
+          exit(1);
+        }
+        text[i] = c;
+        c = next_char(f, NULL);
+        if (text[i] == '\\' && c == '\'') {
+          /* escaped quote */
+          text[++i] = c;
+          c = next_char(f, NULL);
+        }
+      }
+      text[i] = '\'';
+
+      return new_token(Character, pos, text);
+    }
+
     if ('0' <= c && c <= '9') {
       char text[32] = {0};
       int i = 0;
@@ -296,7 +320,7 @@ token_t lex_next(file *f) {
       /* check if keyword */
       for (j = 0; j < KEYWORDS; j++) {
         if (strcmp(keywords[j], text) == 0) {
-          return new_token(48 + j, pos, keywords[j]);
+          return new_token(49 + j, pos, keywords[j]);
         }
       }
 

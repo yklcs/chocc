@@ -9,6 +9,7 @@ typedef enum {
   /* literals */
   Number,
   String,
+  Character,
 
   /* delimiters */
   LBrace, /* { */
@@ -115,23 +116,24 @@ typedef enum {
 } token_kind_t;
 
 static const char *token_kind_map[] = {
-    "Number",      "String",   "LBrace",     "RBrace",      "LBrack",
-    "RBrack",      "LParen",   "RParen",     "Comma",       "Semi",
-    "Assn",        "PlusAssn", "MinusAssn",  "StarAssn", "SlashAssn",
-    "PercentAssn", "AmpAssn",  "BarAssn",    "CaretAssn",   "LShftAssn",
-    "RShftAssn",   "PlusPlus", "MinusMinus", "Plus",        "Minus",
-    "Star",        "Slash",    "Percent",    "Tilde",       "Amp",
-    "Bar",         "Caret",    "LShft",      "RShft",       "Exclaim",
-    "AmpAmp",      "BarBar",   "Question",   "Colon",       "Eq",
-    "Neq",         "Lt",       "Gt",         "Leq",         "Geq",
-    "Arrow",       "Dot",      "Id",         "Auto",        "Break",
-    "Case",        "Char",     "Const",      "Continue",    "Default",
-    "Do",          "Double",   "Else",       "Enum",        "Extern",
-    "Float",       "For",      "Goto",       "If",          "Inline",
-    "Int",         "Long",     "Register",   "Restrict",    "Return",
-    "Short",       "Signed",   "Sizeof",     "Static",      "Struct",
-    "Switch",      "Typedef",  "Union",      "Unsigned",    "Void",
-    "Volatile",    "While",    "Directive",  "Lf",          "Eof"};
+    "Number",    "String",      "Character", "LBrace",     "RBrace",
+    "LBrack",    "RBrack",      "LParen",    "RParen",     "Comma",
+    "Semi",      "Assn",        "PlusAssn",  "MinusAssn",  "StarAssn",
+    "SlashAssn", "PercentAssn", "AmpAssn",   "BarAssn",    "CaretAssn",
+    "LShftAssn", "RShftAssn",   "PlusPlus",  "MinusMinus", "Plus",
+    "Minus",     "Star",        "Slash",     "Percent",    "Tilde",
+    "Amp",       "Bar",         "Caret",     "LShft",      "RShft",
+    "Exclaim",   "AmpAmp",      "BarBar",    "Question",   "Colon",
+    "Eq",        "Neq",         "Lt",        "Gt",         "Leq",
+    "Geq",       "Arrow",       "Dot",       "Id",         "Auto",
+    "Break",     "Case",        "Char",      "Const",      "Continue",
+    "Default",   "Do",          "Double",    "Else",       "Enum",
+    "Extern",    "Float",       "For",       "Goto",       "If",
+    "Inline",    "Int",         "Long",      "Register",   "Restrict",
+    "Return",    "Short",       "Signed",    "Sizeof",     "Static",
+    "Struct",    "Switch",      "Typedef",   "Union",      "Unsigned",
+    "Void",      "Volatile",    "While",     "Directive",  "Lf",
+    "Eof"};
 
 #define KEYWORDS 34
 static const char *keywords[KEYWORDS] = {
