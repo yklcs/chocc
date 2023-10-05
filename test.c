@@ -7,6 +7,8 @@
 int main() {
   a = A B C D;
 }
+int sof = sizeof(sizeof(int *[5]) + 1);
+int cast = (int)(float)218032;
 
 int (*fn)(int[128], char **, int (*)[]);
 int sp\

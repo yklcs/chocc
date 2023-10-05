@@ -304,8 +304,15 @@ void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
   case Expr: {
     switch (root->u.expr.kind) {
     case PrefixExpr: {
-      printf("\033[1mPrefixExpr\033[0m: %s\n", token_kind_map[root->u.expr.op]);
-      print_ast(root->u.expr.rhs, depth + 1, true, pad);
+      printf("\033[1mPrefixExpr\033[0m: %s", token_kind_map[root->u.expr.op]);
+      if (root->u.expr.op == Sizeof && root->u.expr.rhs->kind == TypeName) {
+        printf(" (");
+        print_type(&root->u.expr.rhs->u.type_name);
+        puts(")");
+      } else {
+        puts("");
+        print_ast(root->u.expr.rhs, depth + 1, true, pad);
+      }
       break;
     }
     case PostfixExpr: {
@@ -342,6 +349,12 @@ void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
         print_ast(root->u.expr.rhs, depth + 1, true, pad);
       }
       break;
+    }
+    case CastExpr: {
+      printf("\033[1mCastExpr\033[0m (");
+      print_type(&root->u.expr.lhs->u.type_name);
+      puts(")");
+      print_ast(root->u.expr.rhs, depth + 1, true, pad);
     }
     }
     break;
@@ -1168,15 +1181,17 @@ ast_node_t *expr(parser_t *p, int min_bp) {
   }
   case LParen: { /* group or cast */
     advance(p);
-    if (p->kind == Int) { /* TODO: parse type casts properly */
+    if (is_decl_spec(p->tok)) {
       expr_power power = expr_power_prefix(LParen);
-      advance(p);
+
+      ast_node_t *type_name = parse_type_name(p);
       expect(p, RParen);
-      lhs->u.expr.kind = PrefixExpr;
+
+      lhs->u.expr.kind = CastExpr;
       lhs->u.expr.op = LParen;
+      lhs->u.expr.lhs = type_name;
       lhs->u.expr.rhs = expr(p, power.right);
     } else {
-      /* TODO: add sizeof(type-name) */
       lhs = parse_expr(p);
       expect(p, RParen);
     }
@@ -1197,8 +1212,15 @@ ast_node_t *expr(parser_t *p, int min_bp) {
 
     lhs->u.expr.kind = PrefixExpr;
     lhs->u.expr.op = op;
-    /* TODO: add sizeof(type-name) */
-    lhs->u.expr.rhs = expr(p, power.right);
+
+    if (op == Sizeof && p->kind == LParen &&
+        is_decl_spec(peek(p, 1))) { /* sizeof(type_name) */
+      advance(p);
+      lhs->u.expr.rhs = parse_type_name(p);
+      expect(p, RParen);
+    } else {
+      lhs->u.expr.rhs = expr(p, power.right);
+    }
     break;
   }
   default:
@@ -1422,6 +1444,29 @@ ast_node_t *ast_list_at(ast_node_t *list, int idx) {
   return list->u.list.nodes[idx];
 }
 
+ast_node_t *parse_type_name(parser_t *p) {
+  ast_node_t *node = new_node(TypeName);
+  ast_node_t *decltor;
+  ast_node_t *decl_specs;
+  ast_decl *decltion;
+
+  decl_specs = parse_decl_specs(p);
+  decltor = parse_decltor(p);
+  decltion = decl(decl_specs, decltor);
+  if (decltion->init || decltion->name) {
+    puts("malformed type name");
+    throw(p);
+  }
+  if (decltion->type->store_class) {
+    puts("type name cannot have storage class specifier");
+    throw(p);
+  }
+
+  node->u.type_name = *decltion->type;
+
+  return node;
+}
+
 ast_node_t **parse(parser_t *p) {
   ast_node_t **nodes = calloc(2048, sizeof(ast_node_t *));
 
@@ -1457,6 +1502,6 @@ ast_node_t **parse(parser_t *p) {
   return nodes;
 }
 
-const char *ast_node_kind_map[] = {"Ident",   "Lit",  "FnDefn", "DeclSpecs",
-                                   "Decltor", "Decl", "Stmt",   "Tok",
-                                   "Expr",    "List"};
+const char *ast_node_kind_map[] = {"Ident",   "Lit",  "FnDefn",  "DeclSpecs",
+                                   "Decltor", "Decl", "Stmt",    "Tok",
+                                   "Expr",    "List", "TypeName"};

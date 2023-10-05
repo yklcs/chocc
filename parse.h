@@ -317,7 +317,8 @@ typedef enum ast_expr_kind_t {
   PrefixExpr,
   PostfixExpr,
   CommaExpr,
-  CallExpr
+  CallExpr,
+  CastExpr
 } ast_expr_kind_t;
 
 /*
@@ -407,6 +408,8 @@ typedef struct ast_list {
 void ast_list_append(struct ast_node_t *list, struct ast_node_t *item);
 struct ast_node_t *ast_list_at(struct ast_node_t *list, int idx);
 
+struct ast_node_t *parse_type_name(parser_t *);
+
 /*
  * ast_node_kind_t enumerates the kinds of AST nodes ast_node_t can have.
  * Each item corresponds to a ast_* struct.
@@ -421,7 +424,8 @@ typedef enum ast_node_kind_t {
   Stmt,
   Tok,
   Expr,
-  List
+  List,
+  TypeName
 } ast_node_kind_t;
 
 extern const char *ast_node_kind_map[];
@@ -443,6 +447,7 @@ typedef struct ast_node_t {
     ast_stmt stmt;
     ast_expr expr;
     ast_list list;
+    type type_name;
   } u;
   struct ast_node_t *next;
 } ast_node_t;
