@@ -35,20 +35,6 @@ int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
   return toks_len;
 }
 
-typedef enum def_kind { Blank, Macro, FnMacro } def_kind;
-
-typedef struct def {
-  token_t id;
-
-  token_t *macro;
-  int macro_len;
-
-  token_t *params;
-  int params_len;
-
-  def_kind kind;
-} def;
-
 bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
   bool defined = false;
   *defs = realloc(*defs, sizeof(def) * (defs_len + 1));
@@ -71,7 +57,7 @@ bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
       int params_cap = 1;
       int params_len = 0;
       token_t *params = calloc(params_cap, sizeof(token_t));
-      int k;
+      int macro_cap = 1;
 
       expect(p, Directive);
       expect(p, Id);
@@ -93,28 +79,64 @@ bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
       (*defs)[defs_len].params_len = params_len;
       expect(p, RParen);
 
-      for (k = 0; peek(p, k).kind != Lf &&
-                  peek(p, k).kind != Eof;) { /*  skip to end of line */
-        k++;
+      (*defs)[defs_len].macro = calloc(macro_cap, sizeof(token_t));
+      for (; p->kind != Lf && p->kind != Eof;
+           advance(p)) { /*  skip to end of line */
+        token_t *expanded = NULL;
+        int expanded_len = 0;
+        int k;
+        cpp_define_expand(&expanded, &expanded_len, p, *defs, defs_len);
+        for (k = 0; k < expanded_len; k++) {
+          if ((*defs)[defs_len].macro_len >= macro_cap) {
+            macro_cap *= 2;
+            (*defs)[defs_len].macro =
+                realloc((*defs)[defs_len].macro, sizeof(token_t) * macro_cap);
+          }
+          (*defs)[defs_len].macro[(*defs)[defs_len].macro_len++] = expanded[k];
+        }
+        if (!expanded_len) {
+          if ((*defs)[defs_len].macro_len >= macro_cap) {
+            macro_cap *= 2;
+            (*defs)[defs_len].macro =
+                realloc((*defs)[defs_len].macro, sizeof(token_t) * macro_cap);
+          }
+          (*defs)[defs_len].macro[(*defs)[defs_len].macro_len++] = p->tok;
+        }
       }
-      (*defs)[defs_len].macro = calloc(k, sizeof(token_t));
-      (*defs)[defs_len].macro_len = k;
-      memcpy((*defs)[defs_len].macro, p->toks + p->pos, k * sizeof(token_t));
-      set_pos(p, p->pos + k);
+
       (*defs)[defs_len].kind = FnMacro;
     } else {
       /* #define id macro */
-      token_t *macro_toks = p->toks + p->pos + 2;
-      int k;
-      for (k = 0; macro_toks[k].kind != Lf &&
-                  macro_toks[k].kind != Eof;) { /*  skip to end of line */
-        k++;
+      int macro_cap = 1;
+      (*defs)[defs_len].macro = calloc(macro_cap, sizeof(token_t));
+
+      expect(p, Directive);
+      expect(p, Id);
+
+      for (; p->kind != Lf && p->kind != Eof; advance(p)) {
+        token_t *expanded = NULL;
+        int expanded_len = 0;
+        int k;
+        cpp_define_expand(&expanded, &expanded_len, p, *defs, defs_len);
+        for (k = 0; k < expanded_len; k++) {
+          print_token(expanded[k]);
+          if ((*defs)[defs_len].macro_len >= macro_cap) {
+            macro_cap *= 2;
+            (*defs)[defs_len].macro =
+                realloc((*defs)[defs_len].macro, sizeof(token_t) * macro_cap);
+          }
+          (*defs)[defs_len].macro[(*defs)[defs_len].macro_len++] = expanded[k];
+        }
+        if (!expanded_len) {
+          if ((*defs)[defs_len].macro_len >= macro_cap) {
+            macro_cap *= 2;
+            (*defs)[defs_len].macro =
+                realloc((*defs)[defs_len].macro, sizeof(token_t) * macro_cap);
+          }
+          (*defs)[defs_len].macro[(*defs)[defs_len].macro_len++] = p->tok;
+        }
+        (*defs)[defs_len].kind = Macro;
       }
-      (*defs)[defs_len].macro = calloc(k, sizeof(token_t));
-      (*defs)[defs_len].macro_len = k;
-      memcpy((*defs)[defs_len].macro, macro_toks, k * sizeof(token_t));
-      set_pos(p, p->pos + k + 1);
-      (*defs)[defs_len].kind = Macro;
     }
 
     defined = true;
@@ -175,7 +197,6 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
 
           cpp_define_expand(&expanded, &expanded_len, p, defs, defs_len);
           for (j = 0; j < expanded_len; j++) {
-            print_token(expanded[j]);
             if (a.len == a.cap) {
               a.cap *= 2;
               a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
