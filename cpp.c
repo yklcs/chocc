@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_types/_null.h>
 
 int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
   token_t *toks = toks_out ? *toks_out : NULL;
@@ -34,20 +35,101 @@ int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
   return toks_len;
 }
 
+typedef enum def_kind { Blank, Macro, FnMacro } def_kind;
+
+typedef struct def {
+  token_t id;
+
+  token_t *macro;
+  int macro_len;
+
+  token_t *params;
+  int params_len;
+
+  def_kind kind;
+} def;
+
+bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
+  bool defined = false;
+  *defs = realloc(*defs, sizeof(def) * (defs_len + 1));
+
+  if (p->kind == Directive && !strcmp(p->tok.text, "#define")) {
+    (*defs)[defs_len].macro = NULL;
+    (*defs)[defs_len].params = NULL;
+    (*defs)[defs_len].macro_len = 0;
+    (*defs)[defs_len].params_len = 0;
+    (*defs)[defs_len].id = peek(p, 1);
+
+    if (peek(p, 1).kind == Id && peek(p, 2).kind == Lf) {
+      /* #define id */
+      (*defs)[defs_len].kind = Blank;
+      advance(p);
+    } else if (peek(p, 2).kind == LParen &&
+               peek(p, 2).column ==
+                   peek(p, 1).column + strlen(peek(p, 1).text)) {
+      /* #define id(...) macro */
+      int params_cap = 1;
+      int params_len = 0;
+      token_t *params = calloc(params_cap, sizeof(token_t));
+      int k;
+
+      expect(p, Directive);
+      expect(p, Id);
+      expect(p, LParen);
+      for (; p->kind != RParen;) {
+        if (params_len == params_cap) {
+          params_cap *= 2;
+          params = realloc(params, sizeof(token_t) * params_cap);
+        }
+
+        params[params_len++] = p->tok;
+        expect(p, Id);
+        if (p->kind != Comma) {
+          break;
+        }
+        expect(p, Comma);
+      }
+      (*defs)[defs_len].params = params;
+      (*defs)[defs_len].params_len = params_len;
+      expect(p, RParen);
+
+      for (k = 0; peek(p, k).kind != Lf &&
+                  peek(p, k).kind != Eof;) { /*  skip to end of line */
+        k++;
+      }
+      (*defs)[defs_len].macro = calloc(k, sizeof(token_t));
+      (*defs)[defs_len].macro_len = k;
+      memcpy((*defs)[defs_len].macro, p->toks + p->pos, k * sizeof(token_t));
+      set_pos(p, p->pos + k);
+      (*defs)[defs_len].kind = FnMacro;
+    } else {
+      /* #define id macro */
+      token_t *macro_toks = p->toks + p->pos + 2;
+      int k;
+      for (k = 0; macro_toks[k].kind != Lf &&
+                  macro_toks[k].kind != Eof;) { /*  skip to end of line */
+        k++;
+      }
+      (*defs)[defs_len].macro = calloc(k, sizeof(token_t));
+      (*defs)[defs_len].macro_len = k;
+      memcpy((*defs)[defs_len].macro, macro_toks, k * sizeof(token_t));
+      set_pos(p, p->pos + k + 1);
+      (*defs)[defs_len].kind = Macro;
+    }
+
+    defined = true;
+  }
+
+  return defined;
+}
+
 int cpp_define(token_t **toks_out, parser_t *p) {
   int out_len = 0;
   int out_cap = p->toks_len;
   token_t *out = calloc(out_cap, sizeof(token_t));
 
   int defs_len = 0;
-  int defs_cap = 1;
-  struct def {
-    token_t id;
-    token_t *macro;
-    int macro_len;
-    token_t *params;
-    int params_len;
-  } *defs = calloc(defs_cap, sizeof(struct def));
+  def *defs = NULL;
 
   bool cpp_line = false;
 
@@ -63,74 +145,8 @@ int cpp_define(token_t **toks_out, parser_t *p) {
     }
 
     /* perform definition */
-    if (p->kind == Directive && !strcmp(p->tok.text, "#define")) {
-      if (defs_len >= defs_cap) {
-        defs_cap *= 2;
-        defs = realloc(defs, defs_cap * sizeof(struct def));
-      }
-
-      defs[defs_len].macro = NULL;
-      defs[defs_len].params = NULL;
-      defs[defs_len].macro_len = 0;
-      defs[defs_len].params_len = 0;
-      defs[defs_len].id = peek(p, 1);
-
-      if (peek(p, 1).kind == Id && peek(p, 2).kind == Lf) {
-        /* #define id */
-        advance(p);
-      } else if (peek(p, 2).kind == LParen &&
-                 peek(p, 2).column ==
-                     peek(p, 1).column + strlen(peek(p, 1).text)) {
-        /* #define id(...) macro */
-        int params_cap = 1;
-        int params_len = 0;
-        token_t *params = calloc(params_cap, sizeof(token_t));
-        int k;
-
-        expect(p, Directive);
-        expect(p, Id);
-        expect(p, LParen);
-        for (; p->kind != RParen;) {
-          if (params_len == params_cap) {
-            params_cap *= 2;
-            params = realloc(params, sizeof(token_t) * params_cap);
-          }
-
-          params[params_len++] = p->tok;
-          expect(p, Id);
-          if (p->kind != Comma) {
-            break;
-          }
-          expect(p, Comma);
-        }
-        defs[defs_len].params = params;
-        defs[defs_len].params_len = params_len;
-        expect(p, RParen);
-
-        for (k = 0; peek(p, k).kind != Lf &&
-                    peek(p, k).kind != Eof;) { /*  skip to end of line */
-          k++;
-        }
-        defs[defs_len].macro = calloc(k, sizeof(token_t));
-        defs[defs_len].macro_len = k;
-        memcpy(defs[defs_len].macro, p->toks + p->pos, k * sizeof(token_t));
-        set_pos(p, p->pos + k);
-      } else {
-        /* #define id macro */
-        token_t *macro_toks = p->toks + p->pos + 2;
-        int k;
-        for (k = 0; macro_toks[k].kind != Lf &&
-                    macro_toks[k].kind != Eof;) { /*  skip to end of line */
-          k++;
-        }
-        defs[defs_len].macro = calloc(k, sizeof(token_t));
-        defs[defs_len].macro_len = k;
-        memcpy(defs[defs_len].macro, macro_toks, k * sizeof(token_t));
-        set_pos(p, p->pos + k + 1);
-      }
-      defs_len++;
-      continue;
-    }
+    defined = cpp_define_def(p, &defs, defs_len);
+    defs_len += defined;
 
     /* perform defined replacement */
     if (cpp_line &&
@@ -179,22 +195,51 @@ int cpp_define(token_t **toks_out, parser_t *p) {
     /* perform macro expansion */
     for (j = 0; j < defs_len; j++) {
       if (!strcmp(defs[j].id.text, p->tok.text) && peek(p, 1).kind == LParen &&
-          defs[j].params_len && defs[j].macro_len) {
+          defs[j].kind == FnMacro) {
         int k;
         int args_len = 0;
         int args_cap = 1;
-        token_t *args = calloc(args_cap, sizeof(token_t));
+        struct arg {
+          token_t *toks;
+          int len;
+          int cap;
+        };
+        struct arg *args = calloc(args_cap, sizeof(struct arg));
+        int stack = 0;
 
         expect(p, Id);
         expect(p, LParen);
         for (; p->kind != RParen;) {
+          struct arg a = {0};
+          a.cap = 1;
+          a.toks = calloc(a.cap, sizeof(token_t));
+
           if (args_len == args_cap) {
             args_cap *= 2;
-            args = realloc(args, sizeof(token_t) * args_cap);
+            args = realloc(args, sizeof(struct arg) * args_cap);
           }
 
-          args[args_len++] = p->tok;
-          advance(p);
+          for (;; advance(p)) {
+            if (a.len == a.cap) {
+              a.cap *= 2;
+              a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
+            }
+            if (p->kind == LParen) {
+              stack++;
+            }
+            if (p->kind == RParen) {
+              stack--;
+            }
+            printf("%s %d\n", p->tok.text, stack);
+
+            if (!stack && (p->kind == Comma || p->kind == RParen)) {
+              break;
+            }
+
+            a.toks[a.len++] = p->tok;
+          }
+
+          args[args_len++] = a;
           if (p->kind != Comma) {
             break;
           }
@@ -208,10 +253,12 @@ int cpp_define(token_t **toks_out, parser_t *p) {
 
         for (k = 0; k < defs[j].macro_len; k++) {
           int l;
-
           for (l = 0; l < defs[j].params_len; l++) {
             if (!strcmp(defs[j].macro[k].text, defs[j].params[l].text)) {
-              out[out_len++] = args[l];
+              int m;
+              for (m = 0; m < args[l].len; m++) {
+                out[out_len++] = args[l].toks[m];
+              }
               break;
             }
           }
@@ -222,7 +269,7 @@ int cpp_define(token_t **toks_out, parser_t *p) {
         defined = true;
         break;
       } else if (!strcmp(defs[j].id.text, p->tok.text) && defs[j].macro_len &&
-                 !defs[j].params_len) {
+                 defs[j].kind == Macro) {
         if (out_len + defs[j].macro_len > out_cap) {
           out_cap = out_len + defs[j].macro_len;
           out = realloc(out, sizeof(token_t) * out_cap);
