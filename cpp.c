@@ -9,9 +9,14 @@
 
 int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
   token_t *toks = toks_out ? *toks_out : NULL;
+  int i;
   toks_len = cpp_define(&toks, toks_in, toks_len);
   toks_len = cpp_cond(&toks, toks, toks_len);
   toks_len = filter_newline(&toks, toks, toks_len);
+
+  for (i = 0; i < toks_len; i++) {
+    print_token(toks[i]);
+  }
 
   *toks_out = toks;
   return toks_len;
@@ -158,9 +163,12 @@ int cpp_cond(token_t **toks_out, token_t *toks_in, int toks_in_len) {
       set_pos(&p, 0);
       x = expr(&p, 0);
       cond = eval_cpp_const_expr(x);
-      for (; toks_in[i].kind != Lf; i++) {
+      if (p.kind != Lf) {
+        printf("unexpected token in cpp: %s\n", p.tok.text);
+        exit(1);
       }
 
+      i += p.pos + 1;
       if (cond) {
         for (;
              toks_in[i].kind != Directive && strcmp(toks_in[i].text, "#endif");
