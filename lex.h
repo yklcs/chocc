@@ -149,7 +149,7 @@ typedef struct {
   token_kind_t kind;
   unsigned int line;
   unsigned int column;
-  char text[32];
+  char *text;
 } token_t;
 
 token_t new_token(token_kind_t kind, loc pos, const char *text);

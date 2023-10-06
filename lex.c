@@ -10,6 +10,7 @@ token_t new_token(token_kind_t kind, loc pos, const char *text) {
   tok.kind = kind;
   tok.line = pos.ln;
   tok.column = pos.col;
+  tok.text = calloc(strlen(text) + 1, 1);
   strcpy(tok.text, text);
 
   return tok;
