@@ -123,6 +123,122 @@ bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
   return defined;
 }
 
+bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
+                       int defs_len) {
+  int cap = *toks_len + 1;
+  struct arg {
+    token_t *toks;
+    int len;
+    int cap;
+  };
+  int i;
+  *toks = realloc(*toks, sizeof(token_t) * cap);
+  for (i = 0; i < defs_len; i++) {
+    if (!strcmp(defs[i].id.text, p->tok.text) && peek(p, 1).kind == LParen &&
+        defs[i].kind == FnMacro) {
+      int j;
+      int args_len = 0;
+      int args_cap = 1;
+      struct arg *args = calloc(args_cap, sizeof(struct arg));
+      int stack = 0;
+
+      expect(p, Id);
+      expect(p, LParen);
+      for (; p->kind != RParen;) {
+        struct arg a = {0};
+        a.cap = 1;
+        a.toks = calloc(a.cap, sizeof(token_t));
+
+        if (args_len == args_cap) {
+          args_cap *= 2;
+          args = realloc(args, sizeof(struct arg) * args_cap);
+        }
+
+        for (;; advance(p)) {
+          token_t *expanded = NULL;
+          int expanded_len = 0;
+
+          if (a.len == a.cap) {
+            a.cap *= 2;
+            a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
+          }
+          if (!stack && (p->kind == Comma || p->kind == RParen)) {
+            break;
+          }
+
+          if (p->kind == LParen) {
+            stack++;
+          }
+          if (p->kind == RParen) {
+            stack--;
+          }
+
+          cpp_define_expand(&expanded, &expanded_len, p, defs, defs_len);
+          for (j = 0; j < expanded_len; j++) {
+            print_token(expanded[j]);
+            if (a.len == a.cap) {
+              a.cap *= 2;
+              a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
+            }
+            a.toks[a.len++] = expanded[j];
+          }
+          if (!expanded_len) {
+            a.toks[a.len++] = p->tok;
+          }
+        }
+
+        args[args_len++] = a;
+        if (p->kind != Comma) {
+          break;
+        }
+        expect(p, Comma);
+      }
+
+      for (j = 0; j < defs[i].macro_len; j++) {
+        int k;
+
+        /* replace args in macro */
+        for (k = 0; k < defs[i].params_len; k++) {
+          if (!strcmp(defs[i].macro[j].text, defs[i].params[k].text)) {
+            int l;
+            for (l = 0; l < args[k].len; l++) {
+              if (*toks_len >= cap) {
+                cap *= 2;
+                *toks = realloc(*toks, sizeof(token_t) * cap);
+              }
+              (*toks)[(*toks_len)++] = args[k].toks[l];
+            }
+            break;
+          }
+        }
+
+        if (k == defs[i].params_len) {
+          if (*toks_len >= cap) {
+            cap *= 2;
+            *toks = realloc(*toks, sizeof(token_t) * cap);
+          }
+          (*toks)[(*toks_len)++] = defs[i].macro[j];
+        }
+      }
+      return true;
+    } else if (!strcmp(defs[i].id.text, p->tok.text) && defs[i].macro_len &&
+               defs[i].kind == Macro) {
+      if (*toks_len + defs[i].macro_len >= cap) {
+        cap = *toks_len + defs[i].macro_len;
+        *toks = realloc(*toks, sizeof(token_t) * cap);
+      }
+      memcpy(*toks + *toks_len, defs[i].macro,
+             sizeof(token_t) * defs[i].macro_len);
+      *toks_len += defs[i].macro_len;
+      return true;
+    } else if (!strcmp(defs[i].id.text, p->tok.text) && defs[i].kind == Blank) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 int cpp_define(token_t **toks_out, parser_t *p) {
   int out_len = 0;
   int out_cap = p->toks_len;
@@ -134,8 +250,8 @@ int cpp_define(token_t **toks_out, parser_t *p) {
   bool cpp_line = false;
 
   for (; p->kind != Eof; advance(p)) {
-    int j;
     bool defined = false;
+    bool expanded = false;
 
     if (p->kind == Directive) {
       cpp_line = true;
@@ -193,100 +309,10 @@ int cpp_define(token_t **toks_out, parser_t *p) {
     }
 
     /* perform macro expansion */
-    for (j = 0; j < defs_len; j++) {
-      if (!strcmp(defs[j].id.text, p->tok.text) && peek(p, 1).kind == LParen &&
-          defs[j].kind == FnMacro) {
-        int k;
-        int args_len = 0;
-        int args_cap = 1;
-        struct arg {
-          token_t *toks;
-          int len;
-          int cap;
-        };
-        struct arg *args = calloc(args_cap, sizeof(struct arg));
-        int stack = 0;
+    expanded = cpp_define_expand(&out, &out_len, p, defs, defs_len);
 
-        expect(p, Id);
-        expect(p, LParen);
-        for (; p->kind != RParen;) {
-          struct arg a = {0};
-          a.cap = 1;
-          a.toks = calloc(a.cap, sizeof(token_t));
-
-          if (args_len == args_cap) {
-            args_cap *= 2;
-            args = realloc(args, sizeof(struct arg) * args_cap);
-          }
-
-          for (;; advance(p)) {
-            if (a.len == a.cap) {
-              a.cap *= 2;
-              a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
-            }
-            if (p->kind == LParen) {
-              stack++;
-            }
-            if (p->kind == RParen) {
-              stack--;
-            }
-            printf("%s %d\n", p->tok.text, stack);
-
-            if (!stack && (p->kind == Comma || p->kind == RParen)) {
-              break;
-            }
-
-            a.toks[a.len++] = p->tok;
-          }
-
-          args[args_len++] = a;
-          if (p->kind != Comma) {
-            break;
-          }
-          expect(p, Comma);
-        }
-
-        if (out_len + defs[j].macro_len > out_cap) {
-          out_cap = out_len + defs[j].macro_len;
-          out = realloc(out, sizeof(token_t) * out_cap);
-        }
-
-        for (k = 0; k < defs[j].macro_len; k++) {
-          int l;
-          for (l = 0; l < defs[j].params_len; l++) {
-            if (!strcmp(defs[j].macro[k].text, defs[j].params[l].text)) {
-              int m;
-              for (m = 0; m < args[l].len; m++) {
-                out[out_len++] = args[l].toks[m];
-              }
-              break;
-            }
-          }
-          if (l == defs[j].params_len) {
-            out[out_len++] = defs[j].macro[k];
-          }
-        }
-        defined = true;
-        break;
-      } else if (!strcmp(defs[j].id.text, p->tok.text) && defs[j].macro_len &&
-                 defs[j].kind == Macro) {
-        if (out_len + defs[j].macro_len > out_cap) {
-          out_cap = out_len + defs[j].macro_len;
-          out = realloc(out, sizeof(token_t) * out_cap);
-        }
-
-        memcpy(out + out_len, defs[j].macro,
-               defs[j].macro_len * sizeof(token_t));
-        out_len += defs[j].macro_len;
-        defined = true;
-        break;
-      }
-    }
-    if (!defined) {
-      if (out_len > out_cap) {
-        out_cap *= 2;
-        out = realloc(out, sizeof(token_t) * out_cap);
-      }
+    if (!defined && !expanded) {
+      out = realloc(out, sizeof(token_t) * (out_len + 8));
       out[out_len++] = p->tok;
     }
   }
