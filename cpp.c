@@ -69,6 +69,7 @@ int cpp_define(token_t **toks_out, parser_t *p) {
       defs[defs_len].id = p->toks + p->pos + 1;
       if (peek(p, 1).kind == Id && peek(p, 2).kind == Lf) { /* #define id */
         defs[defs_len].macro = NULL;
+        defs[defs_len].macro_len = 0;
         advance(p);
       } else { /* #define id macro */
         token_t *macro_toks = p->toks + p->pos + 2;
