@@ -10,8 +10,19 @@
 int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
   token_t *toks = toks_out ? *toks_out : NULL;
   int i;
-  toks_len = cpp_define(&toks, toks_in, toks_len);
-  toks_len = cpp_cond(&toks, toks, toks_len);
+
+  parser_t p;
+
+  p.toks = toks_in;
+  p.toks_len = toks_len;
+  set_pos(&p, 0);
+  toks_len = cpp_define(&toks, &p);
+
+  p.toks = toks;
+  p.toks_len = toks_len;
+  set_pos(&p, 0);
+  toks_len = cpp_cond(&toks, &p);
+
   toks_len = filter_newline(&toks, toks, toks_len);
 
   for (i = 0; i < toks_len; i++) {
@@ -22,9 +33,9 @@ int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
   return toks_len;
 }
 
-int cpp_define(token_t **toks_out, token_t *toks_in, int toks_in_len) {
+int cpp_define(token_t **toks_out, parser_t *p) {
   int out_len = 0;
-  int out_cap = toks_in_len;
+  int out_cap = p->toks_len;
   token_t *out = calloc(out_cap, sizeof(token_t));
 
   int defs_len = 0;
@@ -37,34 +48,30 @@ int cpp_define(token_t **toks_out, token_t *toks_in, int toks_in_len) {
 
   bool cpp_line = false;
 
-  int i = 0;
-  for (i = 0; i < toks_in_len; i++) {
+  for (; p->kind != Eof; advance(p)) {
     int j;
     bool defined = false;
 
-    if (toks_in[i].kind == Directive) {
+    if (p->kind == Directive) {
       cpp_line = true;
     }
-    if (toks_in[i].kind == Lf) {
+    if (p->kind == Lf) {
       cpp_line = false;
     }
 
     /* perform definition */
-    if (toks_in[i].kind == Directive && !strcmp(toks_in[i].text, "#define") &&
-        i + 2 < toks_in_len) {
-
+    if (p->kind == Directive && !strcmp(p->tok.text, "#define")) {
       if (defs_len >= defs_cap) {
         defs_cap *= 2;
         defs = realloc(defs, defs_cap * sizeof(struct def));
       }
 
-      defs[defs_len].id = toks_in + i + 1;
-      if (toks_in[i + 1].kind == Id &&
-          toks_in[i + 2].kind == Lf) { /* #define id */
+      defs[defs_len].id = p->toks + p->pos + 1;
+      if (peek(p, 1).kind == Id && peek(p, 2).kind == Lf) { /* #define id */
         defs[defs_len].macro = NULL;
-        i++;
+        advance(p);
       } else { /* #define id macro */
-        token_t *macro_toks = toks_in + i + 2;
+        token_t *macro_toks = p->toks + p->pos + 2;
         int k;
         for (k = 0; macro_toks[k].kind != Lf &&
                     macro_toks[k].kind != Eof;) { /*  skip to end of line */
@@ -73,38 +80,40 @@ int cpp_define(token_t **toks_out, token_t *toks_in, int toks_in_len) {
         defs[defs_len].macro = calloc(k, sizeof(token_t));
         defs[defs_len].macro_len = k;
         memcpy(defs[defs_len].macro, macro_toks, k * sizeof(token_t));
-        i += k + 1;
+        set_pos(p, p->pos + k + 1);
       }
       defs_len++;
       continue;
     }
 
-    if (toks_in[i].kind == Directive && !strcmp(toks_in[i].text, "#ifdef")) {
-      strcpy(toks_in[i].text, "#if defined");
-    }
-    if (toks_in[i].kind == Directive && !strcmp(toks_in[i].text, "#ifndef")) {
-      strcpy(toks_in[i].text, "#if ! defined");
-    }
-
     /* perform defined replacement */
-    if (cpp_line && toks_in[i].kind == Id &&
-        !strcmp(toks_in[i].text, "defined")) {
+    if (cpp_line &&
+        ((p->kind == Id && !strcmp(p->tok.text, "defined")) ||
+         (p->kind == Directive && (!strcmp(p->tok.text, "#ifdef") ||
+                                   !strcmp(p->tok.text, "#ifndef"))))) {
       char *target = NULL;
       bool paren;
-      if (i + 3 < toks_in_len && toks_in[i + 1].kind == LParen &&
-          toks_in[i + 2].kind == Id && toks_in[i + 3].kind == RParen) {
-        target = toks_in[i + 2].text;
+      if (p->pos + 3 < p->toks_len && peek(p, 1).kind == LParen &&
+          peek(p, 2).kind == Id && peek(p, 3).kind == RParen) {
+        target = p->toks[p->pos + 2].text;
         paren = true;
-      } else if (i + 1 < toks_in_len && toks_in[i + 1].kind == Id) {
-        target = toks_in[i + 1].text;
+      } else if (p->pos + 1 < p->toks_len && peek(p, 1).kind == Id) {
+        target = p->toks[p->pos + 1].text;
         paren = false;
       }
 
       if (target) {
         int j;
         loc pos;
-        pos.ln = toks_in[i].line;
-        pos.col = toks_in[i].column;
+        pos.ln = p->tok.line;
+        pos.col = p->tok.column;
+
+        if (!strcmp(p->tok.text, "#ifdef")) {
+          out[out_len++] = new_token(Directive, pos, "#if");
+        } else if (!strcmp(p->tok.text, "#ifndef")) {
+          out[out_len++] = new_token(Directive, pos, "#if");
+          out[out_len++] = new_token(Exclaim, pos, "!");
+        }
 
         for (j = 0; j < defs_len; j++) {
           if (!strcmp(defs[j].id->text, target)) {
@@ -116,14 +125,14 @@ int cpp_define(token_t **toks_out, token_t *toks_in, int toks_in_len) {
         if (j == defs_len) {
           out[out_len++] = new_token(Number, pos, "0");
         }
-        i += paren ? 3 : 1;
+        set_pos(p, p->pos += paren ? 3 : 1);
         continue;
       }
     }
 
     /* perform macro expansion */
     for (j = 0; j < defs_len; j++) {
-      if (!strcmp(defs[j].id->text, toks_in[i].text) && defs[j].macro_len) {
+      if (!strcmp(defs[j].id->text, p->tok.text) && defs[j].macro_len) {
         if (out_len + defs[j].macro_len > out_cap) {
           out_cap = out_len + defs[j].macro_len;
           out = realloc(out, sizeof(token_t) * out_cap);
@@ -141,108 +150,150 @@ int cpp_define(token_t **toks_out, token_t *toks_in, int toks_in_len) {
         out_cap *= 2;
         out = realloc(out, sizeof(token_t) * out_cap);
       }
-      out[out_len++] = toks_in[i];
+      out[out_len++] = p->tok;
     }
   }
 
+  out[out_len++] = p->tok;
   *toks_out = out;
   return out_len;
 }
 
-int cpp_cond_if(token_t **toks_out, token_t *toks_in, int toks_in_len,
-                int *offset) {
-  token_t *out = calloc(toks_in_len, sizeof(token_t));
-  int len = 0;
-  int i = 0;
+bool cpp_cond_cond(parser_t *p) {
   bool cond = false;
-  parser_t p;
-  ast_node_t *x;
-  p.toks = toks_in;
-  set_pos(&p, 0);
 
-  /* #if */
-  if (!(toks_in[i].kind == Directive && !strcmp(toks_in[i].text, "#if"))) {
-    printf("expected #if, got %s\n", toks_in[i].text);
-  }
-  i++;
-  advance(&p);
-  x = expr(&p, 0);
-  if (p.kind != Lf) {
+  ast_node_t *x = expr(p, 0);
+  if (p->kind != Lf) {
     puts("malformed cpp constexpr");
     exit(1);
   }
   cond = eval_cpp_const_expr(x);
-  i += p.pos + 1;
+  advance(p);
+
+  return cond;
+}
+
+int cpp_cond_if(token_t **toks_out, parser_t *p) {
+  token_t *out = calloc(p->toks_len, sizeof(token_t));
+  int len = 0;
+  bool cond = false;
+  bool cond_elif = false;
+
+  token_t *toks_nested;
+  int toks_nested_len;
+
+  /* #if */
+  if (p->kind != Directive ||
+      (strcmp(p->tok.text, "#if") && strcmp(p->tok.text, "#elif"))) {
+    printf("expected #if, got %s\n", p->tok.text);
+  }
+  advance(p);
+  cond = cpp_cond_cond(p);
 
   /* text */
   if (cond) {
-    for (;
-         strcmp(toks_in[i].text, "#elif") && strcmp(toks_in[i].text, "#else") &&
-         strcmp(toks_in[i].text, "#endif");
-         i++) {
-      if (toks_in[i].kind == Directive && !strcmp(toks_in[i].text, "#if")) {
-        /* nested #if */
-        token_t *toks_nested;
-        int toks_nested_offset;
-        int toks_nested_len = cpp_cond_if(&toks_nested, toks_in + i,
-                                          toks_in_len - i, &toks_nested_offset);
+    for (; strcmp(p->tok.text, "#elif") && strcmp(p->tok.text, "#else") &&
+           strcmp(p->tok.text, "#endif");
+         advance(p)) {
+      if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
+        /* nested #if group */
         int j;
-
+        toks_nested_len = cpp_cond_if(&toks_nested, p);
         for (j = 0; j < toks_nested_len; j++) {
           out[len++] = toks_nested[j];
         }
-        i += toks_nested_offset;
       } else {
-        out[len++] = toks_in[i];
+        /* regular text */
+        out[len++] = p->tok;
       }
     }
   } else { /* skip to end of text */
-    for (;
-         strcmp(toks_in[i].text, "#elif") && strcmp(toks_in[i].text, "#else") &&
-         strcmp(toks_in[i].text, "#endif");
-         i++) {
+    for (; strcmp(p->tok.text, "#elif") && strcmp(p->tok.text, "#else") &&
+           strcmp(p->tok.text, "#endif");
+         advance(p)) {
     }
   }
 
   /* elif */
+  for (; p->kind == Directive && !strcmp(p->tok.text, "#elif");) {
+    advance(p);
+    cond_elif = cpp_cond_cond(p);
+
+    if (!cond && cond_elif) {
+      for (; strcmp(p->tok.text, "#elif") && strcmp(p->tok.text, "#else") &&
+             strcmp(p->tok.text, "#endif");) {
+        if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
+          int j;
+          toks_nested_len = cpp_cond_if(&toks_nested, p);
+          for (j = 0; j < toks_nested_len; j++) {
+            out[len++] = toks_nested[j];
+          }
+        } else {
+          out[len++] = p->tok;
+          advance(p);
+        }
+      }
+      cond = true;
+    } else { /* skip to end of text */
+      for (; strcmp(p->tok.text, "#elif") && strcmp(p->tok.text, "#else") &&
+             strcmp(p->tok.text, "#endif");
+           advance(p)) {
+      }
+    }
+  }
 
   /* else */
+  if (p->kind == Directive && !strcmp(p->tok.text, "#else")) {
+    advance(p);
+    if (!cond) {
+      for (; strcmp(p->tok.text, "#endif"); advance(p)) {
+        if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
+          int j;
+          toks_nested_len = cpp_cond_if(&toks_nested, p);
+          for (j = 0; j < toks_nested_len; j++) {
+            out[len++] = toks_nested[j];
+          }
+        } else {
+          out[len++] = p->tok;
+        }
+      }
+    } else {
+      for (; strcmp(p->tok.text, "#endif"); advance(p)) {
+      }
+    }
+  }
 
   /* #endif */
 
-  if (toks_in[i].kind != Directive || strcmp(toks_in[i].text, "#endif")) {
-    printf("expected #endif, got %s\n", toks_in[i].text);
+  if (p->kind != Directive || strcmp(p->tok.text, "#endif")) {
+    printf("expected #endif, got %s\n", p->tok.text);
     exit(1);
   }
+  advance(p);
+
   *toks_out = out;
-  *offset = i;
   return len;
 }
 
-int cpp_cond(token_t **toks_out, token_t *toks_in, int toks_in_len) {
-  token_t *out = calloc(toks_in_len, sizeof(token_t));
+int cpp_cond(token_t **toks_out, parser_t *p) {
+  token_t *out = calloc(p->toks_len, sizeof(token_t));
   int len = 0;
 
-  int i;
-  for (i = 0; i < toks_in_len; i++) {
-    if (toks_in[i].kind == Directive && !strcmp(toks_in[i].text, "#if")) {
+  for (; p->kind != Eof; advance(p)) {
+    if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
       token_t *toks_if;
-      int toks_if_offset;
-      int toks_if_len =
-          cpp_cond_if(&toks_if, toks_in + i, toks_in_len - i, &toks_if_offset);
+      int toks_if_len = cpp_cond_if(&toks_if, p);
 
       int j;
       for (j = 0; j < toks_if_len; j++) {
         out[len++] = toks_if[j];
       }
-
-      i += toks_if_offset;
       continue;
     }
-    if (toks_in[i].kind != Lf) {
-      out[len++] = toks_in[i];
-    }
+    out[len++] = p->tok;
   }
+  out[len++] = p->tok;
+
   *toks_out = out;
   return len;
 }
@@ -263,6 +314,9 @@ int filter_newline(token_t **toks_out, token_t *toks_in, int toks_in_len) {
 
 unsigned long eval_cpp_const_expr(ast_node_t *root) {
   switch (root->kind) {
+  case Ident: {
+    return 0;
+  }
   case Lit: {
     switch (root->u.lit.kind) {
     case CharLit:

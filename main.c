@@ -24,11 +24,12 @@ int main(int argc, char *argv[]) {
   print_file(f);
 
   toks_len = lex_file(f, &toks);
-
   toks_len = cpp(&toks, toks, toks_len);
 
   parser.toks = toks;
+  parser.toks_len = toks_len;
   set_pos(&parser, 0);
+
   ast = parse(&parser);
 
   for (node = ast; *node != NULL; node++) {

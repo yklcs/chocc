@@ -1,11 +1,19 @@
 #define TEST_C
 #define A 10 + 1
-#define B +2
-#define C +3
-#define D +4
+#if B
+int i;
+#elif defined B
+int j;
+#else
+#ifdef A
+int k;
+#else
+int l;
+#endif
+#endif
 
 int main() {
-  a = A B C D;
+  a = A;
 }
 int sof = sizeof(sizeof(int *[5]) + 1);
 int cast = (int)(float)218032;

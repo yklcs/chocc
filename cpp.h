@@ -7,8 +7,8 @@
 
 int cpp(token_t **toks_out, token_t *toks_in, int toks_in_len);
 
-int cpp_cond(token_t **toks_out, token_t *toks_in, int toks_in_len);
-int cpp_define(token_t **toks_out, token_t *toks_in, int toks_in_len);
+int cpp_cond(token_t **toks_out, parser_t *p);
+int cpp_define(token_t **toks_out, parser_t *p);
 
 /* Filter out tokens that pass a filter function.  */
 int filter_newline(token_t **toks_out, token_t *toks_in, int toks_in_len);
