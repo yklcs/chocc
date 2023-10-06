@@ -258,6 +258,11 @@ token_t lex_next(file *f) {
       int i = 0;
       char c_peek = peek_char(f);
 
+      if (!f->lines[pos.ln - 1].cpp) {
+        puts("cpp directive must be on its own line");
+        exit(1);
+      }
+
       text[i++] = c;
       for (; 'a' <= c_peek && c_peek <= 'z'; c_peek = peek_char(f)) {
         text[i++] = next_char(f, NULL);

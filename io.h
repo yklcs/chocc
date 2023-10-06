@@ -22,6 +22,7 @@ typedef struct line {
   char *src;
   int len;
   bool splice;
+  bool cpp;
 } line;
 
 /*

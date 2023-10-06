@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +34,10 @@ file *src_to_file(char *src) {
   for (;; pos++) {
     if (*pos == '\n' || !*pos) {
       line ln = {0};
+
+      int j;
+      bool space = true;
+
       ln.num = i++;
       if (pos > src) {
         ln.splice = *(pos - 1) == '\\';
@@ -40,8 +45,17 @@ file *src_to_file(char *src) {
 
       ln_end = pos;
       ln.src = calloc(ln_end - ln_begin + 1, 1);
-      strncpy(ln.src, ln_begin, ln_end - ln_begin);
       ln.len = ln_end - ln_begin;
+      strncpy(ln.src, ln_begin, ln.len);
+
+      for (j = 0; j < ln.len; j++) {
+        if (space && ln.src[j] == '#') {
+          ln.cpp = true;
+        }
+        if (!isspace(ln.src[j])) {
+          space = false;
+        }
+      }
 
       ln_begin = pos + 1;
 
