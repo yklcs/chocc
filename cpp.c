@@ -119,7 +119,6 @@ bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
         int k;
         cpp_define_expand(&expanded, &expanded_len, p, *defs, defs_len);
         for (k = 0; k < expanded_len; k++) {
-          print_token(expanded[k]);
           if ((*defs)[defs_len].macro_len >= macro_cap) {
             macro_cap *= 2;
             (*defs)[defs_len].macro =
@@ -268,6 +267,167 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
             }
             (*toks)[(*toks_len)++] = new_token(String, pos, str);
             j++;
+            break;
+          }
+
+          /* concatenation */
+          if (defs[i].macro[j].kind == Directive &&
+              defs[i].macro[j + 1].kind == Directive &&
+              defs[i].macro[j].column + 1 == defs[i].macro[j + 1].column &&
+              !strcmp(defs[i].macro[j + 2].text, defs[i].params[k].text)) {
+            char *cat_str;
+            loc pos;
+
+            int l;
+
+            token_t *prev = (*toks) + *toks_len - 1;
+            token_kind_t cat_kind = -1;
+
+            switch (prev->kind) {
+            case Number: {
+              if (args[k].toks[0].kind == Number) {
+                cat_kind = Number;
+              }
+              break;
+            }
+            case Id: {
+              if (args[k].toks[0].kind == Number) {
+                cat_kind = Id;
+              } else if (args[k].toks[0].kind == Id) {
+                cat_kind = Id;
+              }
+              break;
+            }
+            case Assn: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = Eq;
+                cat_str = "==";
+              }
+              break;
+            }
+            case Plus: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = PlusAssn;
+              } else if (args[k].toks[0].kind == Plus) {
+                cat_kind = PlusPlus;
+              }
+              break;
+            }
+            case Minus: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = MinusAssn;
+              } else if (args[k].toks[0].kind == MinusMinus) {
+                cat_kind = MinusMinus;
+              }
+              break;
+            }
+            case Star: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = StarAssn;
+              }
+              break;
+            }
+            case Slash: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = SlashAssn;
+              }
+              break;
+            }
+            case Percent: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = PercentAssn;
+              }
+              break;
+            }
+            case Amp: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = AmpAssn;
+              } else if (args[k].toks[0].kind == Amp) {
+                cat_kind = AmpAmp;
+              }
+              break;
+            }
+            case Bar: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = BarAssn;
+              } else if (args[k].toks[0].kind == Bar) {
+                cat_kind = BarBar;
+              }
+              break;
+            }
+            case Caret: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = CaretAssn;
+              }
+              break;
+            }
+            case Lt: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = Leq;
+              } else if (args[k].toks[0].kind == Lt) {
+                cat_kind = LShft;
+              } else if (args[k].toks[0].kind == Leq) {
+                cat_kind = LShftAssn;
+              }
+              break;
+            }
+            case LShft: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = LShftAssn;
+              }
+              break;
+            }
+            case Gt: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = Geq;
+              } else if (args[k].toks[0].kind == Gt) {
+                cat_kind = RShft;
+              } else if (args[k].toks[0].kind == Geq) {
+                cat_kind = RShft;
+              }
+              break;
+            }
+            case RShft: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = RShftAssn;
+              }
+              break;
+            }
+            case Exclaim: {
+              if (args[k].toks[0].kind == Assn) {
+                cat_kind = Neq;
+              }
+              break;
+            }
+            default:
+              cat_kind = -1;
+            }
+            if (cat_kind < 0) {
+              puts("invalid cpp concatenation tokens");
+              exit(1);
+            }
+
+            cat_str = calloc(
+                strlen(prev->text) + strlen(args[k].toks[0].text) + 1, 1);
+            strcpy(cat_str, prev->text);
+            strcpy(cat_str + strlen(prev->text), args[k].toks[0].text);
+
+            pos.col = prev->column;
+            pos.ln = prev->line;
+            if (*toks_len >= cap) {
+              cap *= 2;
+              *toks = realloc(*toks, sizeof(token_t) * cap);
+            }
+            (*toks)[(*toks_len) - 1] = new_token(cat_kind, pos, cat_str);
+
+            for (l = 1; l < args[k].len; l++) {
+              if (*toks_len >= cap) {
+                cap *= 2;
+                *toks = realloc(*toks, sizeof(token_t) * cap);
+              }
+              (*toks)[(*toks_len)++] = args[k].toks[l];
+            }
+            j += 2;
             break;
           }
 
