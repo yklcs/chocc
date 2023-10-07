@@ -1,8 +1,8 @@
 #include "lex.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/_types/_null.h>
 
 token_t new_token(token_kind_t kind, loc pos, const char *text) {
   token_t tok = {0};
@@ -133,7 +133,7 @@ token_t lex_next(file *f) {
         }
         next_char(f, &pos);
       } else {
-        return new_token(Star, pos, "*");
+        return new_token(Slash, pos, "/");
       }
     }
 
