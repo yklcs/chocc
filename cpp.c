@@ -33,8 +33,8 @@ int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
   return toks_len;
 }
 
-bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
-  bool defined = false;
+int cpp_define_def(parser_t *p, def **defs, int defs_len) {
+  int defined = 0;
   token_t *hideset = NULL;
   int hideset_len = 0;
   int macro_cap = 1;
@@ -126,7 +126,27 @@ bool cpp_define_def(parser_t *p, def **defs, int defs_len) {
       }
     }
 
-    defined = true;
+    defined = 1;
+  }
+
+  if (p->kind == Directive && !strcmp(p->tok.text, "#undef")) {
+    int i;
+
+    advance(p);
+    for (i = 0; i < defs_len; i++) {
+      if (!strcmp((*defs)[i].id.text, p->tok.text)) {
+        break;
+      }
+    }
+    if (i != defs_len) {
+      memmove(*defs + i, *defs + i + 1, (defs_len - i) * sizeof(def));
+      defs_len--;
+    } else {
+      puts("could not #undef");
+      exit(1);
+    }
+
+    defined = -1;
   }
 
   return defined;
