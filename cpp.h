@@ -25,7 +25,7 @@ typedef struct def {
 } def;
 
 bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
-                       int defs_len);
+                       int defs_len, token_t *hideset, int hideset_len);
 
 /* Filter out tokens that pass a filter function.  */
 int filter_newline(token_t **toks_out, token_t *toks_in, int toks_in_len);
