@@ -166,6 +166,8 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
 
       expect(p, Id);
       expect(p, LParen);
+
+      /* build up args */
       for (; p->kind != RParen;) {
         struct arg a = {0};
         a.cap = 1;
@@ -215,11 +217,61 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
         expect(p, Comma);
       }
 
+      /* perform expansion */
       for (j = 0; j < defs[i].macro_len; j++) {
         int k;
 
         /* replace args in macro */
         for (k = 0; k < defs[i].params_len; k++) {
+          /* stringification */
+          if (defs[i].macro[j].kind == Directive &&
+              defs[i].macro[j].column + 1 == defs[i].macro[j + 1].column &&
+              !strcmp(defs[i].macro[j + 1].text, defs[i].params[k].text)) {
+            int str_len = 0;
+            unsigned long str_cap = 1;
+            char *str = calloc(str_cap + 1, 1);
+            loc pos;
+            int l;
+
+            str[str_len++] = '"';
+            for (l = 0; l < args[k].len; l++) {
+              unsigned long m;
+              if (str_len + strlen(args[k].toks[l].text) >= str_cap) {
+                str_cap = str_len + strlen(args[k].toks[l].text) + 4;
+                str = realloc(str, str_cap + 1);
+              }
+
+              for (m = 0; m < strlen(args[k].toks[l].text); m++) {
+                if ((args[k].toks[l].kind == String ||
+                     args[k].toks[l].kind == Character) &&
+                    (args[k].toks[l].text[m] == '\\' ||
+                     args[k].toks[l].text[m] == '"')) {
+                  str[str_len++] = '\\';
+                }
+                str[str_len++] = args[k].toks[l].text[m];
+              }
+              if (l < args[k].len - 1 &&
+                  args[k].toks[l].column + strlen(args[k].toks[l].text) !=
+                      args[k].toks[l + 1].column) {
+                str[str_len++] = ' ';
+              }
+            }
+
+            str[str_len++] = '"';
+            str[str_len] = 0;
+            pos.ln = args[k].toks[0].line;
+            pos.col = args[k].toks[0].column;
+
+            if (*toks_len >= cap) {
+              cap *= 2;
+              *toks = realloc(*toks, sizeof(token_t) * cap);
+            }
+            (*toks)[(*toks_len)++] = new_token(String, pos, str);
+            j++;
+            break;
+          }
+
+          /* macro id matches param id */
           if (!strcmp(defs[i].macro[j].text, defs[i].params[k].text)) {
             int l;
             for (l = 0; l < args[k].len; l++) {
@@ -232,7 +284,7 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
             break;
           }
         }
-
+        /* no replacement */
         if (k == defs[i].params_len) {
           if (*toks_len >= cap) {
             cap *= 2;
