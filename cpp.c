@@ -17,6 +17,8 @@ struct unit *cpp(struct unit *in) {
 
   u = cpp_replace(u);
   u = cpp_cond(u);
+  u = cpp_pragma(u);
+  u = cpp_include(u);
   u = filter_newline(u);
 
   for (i = 0; i < u->len; i++) {
@@ -706,6 +708,53 @@ struct unit *cpp_cond(struct unit *in) {
     unit_append(out, p.tok);
   }
   unit_append(out, p.tok);
+
+  return out;
+}
+
+struct unit *cpp_pragma(struct unit *in) {
+  struct unit *out = new_unit();
+  bool pragma_ln = false;
+  int i;
+
+  for (i = 0; i < in->len; i++) {
+    token_t tok;
+    tok = *unit_at(in, i);
+    if (tok.kind == Directive && !strcmp(tok.text, "#pragma")) {
+      pragma_ln = true;
+    }
+    if (tok.kind == Lf) {
+      pragma_ln = false;
+    }
+
+    if (!pragma_ln) {
+      unit_append(out, tok);
+    }
+  }
+
+  return out;
+}
+
+/* ignore #include lines for now */
+struct unit *cpp_include(struct unit *in) {
+  struct unit *out = new_unit();
+  bool include_ln = false;
+  int i;
+
+  for (i = 0; i < in->len; i++) {
+    token_t tok;
+    tok = *unit_at(in, i);
+    if (tok.kind == Directive && !strcmp(tok.text, "#include")) {
+      include_ln = true;
+    }
+    if (tok.kind == Lf) {
+      include_ln = false;
+    }
+
+    if (!include_ln) {
+      unit_append(out, tok);
+    }
+  }
 
   return out;
 }

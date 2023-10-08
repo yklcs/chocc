@@ -28,7 +28,10 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
 struct unit *cpp_cond(struct unit *in);
 struct unit *cpp_cond_if(parser_t *p);
 
-/* Filter out tokens that pass a filter function.  */
+struct unit *cpp_pragma(struct unit *in);
+
+struct unit *cpp_include(struct unit *in);
+
 struct unit *filter_newline(struct unit *in);
 
 /*
