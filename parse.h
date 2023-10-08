@@ -17,6 +17,9 @@ typedef struct parser_t {
   int pos;
   token_t tok;
   token_kind_t kind;
+
+  struct ast_node_t *tdefs;
+  int tdefs_len;
 } parser_t;
 
 void throw(parser_t * parser);
@@ -224,11 +227,14 @@ typedef struct ast_decl_spec {
   struct ast_node_t *enum_idents; /* ast_list(ast_ident) */
   struct ast_node_t *enum_exprs;  /* ast_list(ast_expr) */
 
+  /* typedef */
+  type *alias;
+
   struct ast_node_t *name;
 } ast_decl_spec;
 
 struct ast_node_t *parse_decl_specs(parser_t *);
-bool is_decl_spec(token_t token);
+bool is_decl_spec(parser_t *, token_t token);
 
 /*
  * Decl(ara)tors

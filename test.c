@@ -64,3 +64,10 @@ int xx(char c) {
 
   return 1;
 }
+typedef int a;
+a b = 1;
+void fn(void) {
+  char b;
+  (a) * b;
+  (aa) * b;
+}
