@@ -735,7 +735,7 @@ struct unit *cpp_pragma(struct unit *in) {
   return out;
 }
 
-/* ignore #include lines for now */
+/* TODO: handle includes properly */
 struct unit *cpp_include(struct unit *in) {
   struct unit *out = new_unit();
   bool include_ln = false;
