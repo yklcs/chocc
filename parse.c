@@ -479,7 +479,7 @@ ast_node_t *parse_lit(parser_t *p) {
 ast_node_t *parse_ident(parser_t *p) {
   ast_node_t *node = new_node(Ident);
 
-  node->u.ident = malloc(sizeof(p->tok.text) + 1);
+  node->u.ident = malloc(strlen(p->tok.text) + 1);
   strcpy(node->u.ident, p->tok.text);
   expect(p, Id);
 
@@ -489,7 +489,7 @@ ast_node_t *parse_ident(parser_t *p) {
 ast_node_t *parse_into_ident(parser_t *p) {
   ast_node_t *node = new_node(Ident);
 
-  node->u.ident = malloc(sizeof(p->tok.text) + 1);
+  node->u.ident = malloc(strlen(p->tok.text) + 1);
   strcpy(node->u.ident, p->tok.text);
   advance(p);
 
