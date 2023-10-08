@@ -8,11 +8,11 @@
 #include "parse.h"
 
 int main(int argc, char *argv[]) {
-  struct unit *u;
-  parser_t parser;
-  ast_node_t **ast;
-  ast_node_t **node;
   file *f;
+  struct unit *u;
+  ast_node_t *ast;
+  int ast_len;
+  int i;
 
   if (argc != 2) {
     puts("usage: chocc input.c");
@@ -25,11 +25,10 @@ int main(int argc, char *argv[]) {
   u = lex_file(f);
   u = cpp(u);
 
-  parser = new_parser(u);
-  ast = parse(&parser);
+  ast_len = parse(u, &ast);
 
-  for (node = ast; *node != NULL; node++) {
-    print_ast(*node, 0, node + 1 == NULL, "");
+  for (i = 0; i < ast_len; i++) {
+    print_ast(ast + i, 0, i == ast_len - 1, "");
   }
 
   return 0;

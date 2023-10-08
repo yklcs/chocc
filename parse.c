@@ -763,7 +763,6 @@ bool is_decl_spec(parser_t *p, token_t token) {
     int i;
     bool tdef = false;
     for (i = 0; i < p->tdefs_len; i++) {
-      puts(p->tdefs[i].u.decl.name->u.ident);
       if (!strcmp(p->tdefs[i].u.decl.name->u.ident, p->tok.text)) {
         tdef = true;
         break;
@@ -1524,39 +1523,53 @@ ast_node_t *parse_type_name(parser_t *p) {
   return node;
 }
 
-ast_node_t **parse(parser_t *p) {
-  ast_node_t **nodes = calloc(2048, sizeof(ast_node_t *));
+int parse(struct unit *src, ast_node_t **ast) {
+  parser_t p;
+  ast_node_t *nodes;
+  int len;
+  int cap;
 
-  int i;
-  for (i = 0; p->kind != Eof;) {
+  p = new_parser(src);
+  len = 0;
+  cap = 128;
+  nodes = calloc(cap, sizeof(*nodes));
+
+  for (len = 0; p.kind != Eof;) {
     ast_node_t *node = NULL;
-    int pos = p->pos;
+    int pos = p.pos;
 
-    parse_decl_specs(p);
-    parse_decltor(p);
+    parse_decl_specs(&p);
+    parse_decltor(&p);
 
-    if (p->kind == LBrace) { /* FnDefn */
-      set_pos(p, pos);
-      node = parse_fn_defn(p);
-      nodes[i++] = node;
-    } else if (p->kind == Semi || p->kind == Comma ||
-               p->kind == Assn) { /* Decl */
+    if (p.kind == LBrace) { /* FnDefn */
+      set_pos(&p, pos);
+      node = parse_fn_defn(&p);
+
+      if (len >= cap) {
+        cap *= 2;
+        nodes = realloc(nodes, cap * sizeof(*nodes));
+      }
+      nodes[len++] = *node;
+    } else if (p.kind == Semi || p.kind == Comma || p.kind == Assn) { /* Decl */
       ast_node_t *decls;
+      set_pos(&p, pos);
+      decls = parse_decl(&p);
 
-      set_pos(p, pos);
-      decls = parse_decl(p);
-      memcpy(nodes + i, decls->u.list.nodes,
-             decls->u.list.len * sizeof(token_t *));
-      i += decls->u.list.len;
+      if (len + decls->u.list.len >= cap) {
+        cap = (len + decls->u.list.len) * 2;
+        nodes = realloc(nodes, cap * sizeof(*nodes));
+      }
+      memcpy(nodes + len, *decls->u.list.nodes,
+             decls->u.list.len * sizeof(*nodes));
+      len += decls->u.list.len;
     } else {
-      printf("unexpected token %s (%s)\n", p->tok.text,
-             token_kind_map[p->kind]);
-      throw(p);
+      printf("unexpected token %s (%s)\n", p.tok.text, token_kind_map[p.kind]);
+      throw(&p);
     }
   }
-  nodes[i] = NULL;
 
-  return nodes;
+  *ast = nodes;
+  return len;
 }
 
 const char *ast_node_kind_map[] = {"Ident",   "Lit",  "FnDefn",  "DeclSpecs",

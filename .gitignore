@@ -3,3 +3,6 @@ chocc
 *.dSYM/
 compile_commands.json
 .cache
+*.so
+.pytest_cache/
+__pycache__/
