@@ -286,7 +286,7 @@ token_t lex_next(file *f) {
         }
         text[i] = c;
         c = next_char(f, NULL);
-        if (text[i] == '\\' && c == '\'') {
+        if (c == '\\' && c == '\'') {
           /* escaped quote */
           text[++i] = c;
           c = next_char(f, NULL);
