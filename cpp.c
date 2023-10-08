@@ -7,34 +7,27 @@
 #include <stdlib.h>
 #include <string.h>
 
-int cpp(token_t **toks_out, token_t *toks_in, int toks_len) {
-  token_t *toks = toks_out ? *toks_out : NULL;
+struct unit *cpp(struct unit *in) {
   int i;
+  struct unit *u = calloc(1, sizeof(*u));
 
-  parser_t p;
+  u->toks = in->toks;
+  u->cap = in->cap;
+  u->len = in->len;
 
-  p.toks = toks_in;
-  p.toks_len = toks_len;
-  set_pos(&p, 0);
-  toks_len = cpp_define(&toks, &p);
+  u = cpp_replace(u);
+  u = cpp_cond(u);
+  u = filter_newline(u);
 
-  p.toks = toks;
-  p.toks_len = toks_len;
-  set_pos(&p, 0);
-  toks_len = cpp_cond(&toks, &p);
-
-  toks_len = filter_newline(&toks, toks, toks_len);
-
-  for (i = 0; i < toks_len; i++) {
-    print_token(toks[i]);
+  for (i = 0; i < u->len; i++) {
+    print_token(*unit_at(u, i));
   }
 
-  *toks_out = toks;
-  return toks_len;
+  return u;
 }
 
-int cpp_define_def(parser_t *p, def **defs, int defs_len) {
-  int defined = 0;
+int cpp_replace_define(parser_t *p, def **defs, int defs_len) {
+  int delta = 0;
   token_t *hideset = NULL;
   int hideset_len = 0;
   int macro_cap = 1;
@@ -103,20 +96,21 @@ int cpp_define_def(parser_t *p, def **defs, int defs_len) {
 
     (*defs)[defs_len].macro = calloc(macro_cap, sizeof(token_t));
     for (; p->kind != Lf && p->kind != Eof; advance(p)) {
-      token_t *expanded = NULL;
-      int expanded_len = 0;
+      struct unit *expanded;
       int k;
-      cpp_define_expand(&expanded, &expanded_len, p, *defs, defs_len, hideset,
-                        hideset_len);
-      for (k = 0; k < expanded_len; k++) {
+
+      expanded = new_unit();
+      cpp_replace_expand(expanded, p, *defs, defs_len, hideset, hideset_len);
+      for (k = 0; k < expanded->len; k++) {
         if ((*defs)[defs_len].macro_len >= macro_cap) {
           macro_cap *= 2;
           (*defs)[defs_len].macro =
               realloc((*defs)[defs_len].macro, sizeof(token_t) * macro_cap);
         }
-        (*defs)[defs_len].macro[(*defs)[defs_len].macro_len++] = expanded[k];
+        (*defs)[defs_len].macro[(*defs)[defs_len].macro_len++] =
+            *unit_at(expanded, k);
       }
-      if (!expanded_len) {
+      if (!expanded->len) {
         if ((*defs)[defs_len].macro_len >= macro_cap) {
           macro_cap *= 2;
           (*defs)[defs_len].macro =
@@ -126,7 +120,7 @@ int cpp_define_def(parser_t *p, def **defs, int defs_len) {
       }
     }
 
-    defined = 1;
+    delta = 1;
   }
 
   if (p->kind == Directive && !strcmp(p->tok.text, "#undef")) {
@@ -146,22 +140,20 @@ int cpp_define_def(parser_t *p, def **defs, int defs_len) {
       exit(1);
     }
 
-    defined = -1;
+    delta = -1;
   }
 
-  return defined;
+  return delta;
 }
 
-bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
-                       int defs_len, token_t *hideset, int hideset_len) {
-  int cap = *toks_len + 1;
+int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
+                       token_t *hideset, int hideset_len) {
   struct arg {
     token_t *toks;
     int len;
     int cap;
   };
   int i;
-  *toks = realloc(*toks, sizeof(token_t) * cap);
   for (i = 0; i < defs_len; i++) {
     if (!strcmp(defs[i].id.text, p->tok.text) && peek(p, 1).kind == LParen &&
         defs[i].kind == FnMacro) {
@@ -186,14 +178,12 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
         }
 
         for (;; advance(p)) {
-          token_t *expanded = NULL;
-          int expanded_len = 0;
           bool hidden = false;
+          int expanded = 0;
+          struct unit *arg_expanded;
 
-          if (a.len == a.cap) {
-            a.cap *= 2;
-            a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
-          }
+          arg_expanded = new_unit();
+
           if (!stack && (p->kind == Comma || p->kind == RParen)) {
             break;
           }
@@ -212,21 +202,28 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
             }
           }
           if (!hidden) {
-            cpp_define_expand(&expanded, &expanded_len, p, defs, defs_len,
-                              hideset, hideset_len);
+            expanded = cpp_replace_expand(arg_expanded, p, defs, defs_len,
+                                          hideset, hideset_len);
           }
-          for (j = 0; j < expanded_len; j++) {
+          for (j = 0; j < arg_expanded->len; j++) {
             if (a.len == a.cap) {
               a.cap *= 2;
               a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
             }
-            a.toks[a.len++] = expanded[j];
+            a.toks[a.len++] = *unit_at(arg_expanded, j);
           }
-          if (!expanded_len) {
+          if (!expanded) {
+            if (a.len == a.cap) {
+              a.cap *= 2;
+              a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
+            }
             a.toks[a.len++] = p->tok;
           }
         }
-
+        if (a.len == a.cap) {
+          a.cap *= 2;
+          a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
+        }
         args[args_len++] = a;
         if (p->kind != Comma) {
           break;
@@ -290,11 +287,7 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
             pos.ln = args[k].toks[0].line;
             pos.col = args[k].toks[0].column;
 
-            if (*toks_len >= cap) {
-              cap *= 2;
-              *toks = realloc(*toks, sizeof(token_t) * cap);
-            }
-            (*toks)[(*toks_len)++] = new_token(String, pos, str);
+            unit_append(out, new_token(String, pos, str));
             j++;
             break;
           }
@@ -309,7 +302,7 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
 
             int l;
 
-            token_t *prev = (*toks) + *toks_len - 1;
+            token_t *prev = out->toks + out->len - 1;
             token_kind_t cat_kind = -1;
 
             switch (prev->kind) {
@@ -443,18 +436,10 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
 
             pos.col = prev->column;
             pos.ln = prev->line;
-            if (*toks_len >= cap) {
-              cap *= 2;
-              *toks = realloc(*toks, sizeof(token_t) * cap);
-            }
-            (*toks)[(*toks_len) - 1] = new_token(cat_kind, pos, cat_str);
 
+            out->toks[out->len - 1] = new_token(cat_kind, pos, cat_str);
             for (l = 1; l < args[k].len; l++) {
-              if (*toks_len >= cap) {
-                cap *= 2;
-                *toks = realloc(*toks, sizeof(token_t) * cap);
-              }
-              (*toks)[(*toks_len)++] = args[k].toks[l];
+              unit_append(out, args[k].toks[l]);
             }
             j += 2;
             break;
@@ -464,22 +449,14 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
           if (!strcmp(defs[i].macro[j].text, defs[i].params[k].text)) {
             int l;
             for (l = 0; l < args[k].len; l++) {
-              if (*toks_len >= cap) {
-                cap *= 2;
-                *toks = realloc(*toks, sizeof(token_t) * cap);
-              }
-              (*toks)[(*toks_len)++] = args[k].toks[l];
+              unit_append(out, args[k].toks[l]);
             }
             break;
           }
         }
         /* no replacement */
         if (k == defs[i].params_len) {
-          if (*toks_len >= cap) {
-            cap *= 2;
-            *toks = realloc(*toks, sizeof(token_t) * cap);
-          }
-          (*toks)[(*toks_len)++] = defs[i].macro[j];
+          unit_append(out, defs[i].macro[j]);
         }
       }
       return true;
@@ -497,13 +474,10 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
         return false;
       }
 
-      if (*toks_len + defs[i].macro_len >= cap) {
-        cap = *toks_len + defs[i].macro_len;
-        *toks = realloc(*toks, sizeof(token_t) * cap);
+      for (j = 0; j < defs[i].macro_len; j++) {
+        unit_append(out, defs[i].macro[j]);
       }
-      memcpy(*toks + *toks_len, defs[i].macro,
-             sizeof(token_t) * defs[i].macro_len);
-      *toks_len += defs[i].macro_len;
+
       return true;
     } else if (!strcmp(defs[i].id.text, p->tok.text) && defs[i].kind == Blank) {
       return true;
@@ -513,87 +487,85 @@ bool cpp_define_expand(token_t **toks, int *toks_len, parser_t *p, def *defs,
   return false;
 }
 
-int cpp_define(token_t **toks_out, parser_t *p) {
-  int out_len = 0;
-  int out_cap = p->toks_len;
-  token_t *out = calloc(out_cap, sizeof(token_t));
+struct unit *cpp_replace(struct unit *in) {
+  struct unit *out;
+  parser_t p;
 
   int defs_len = 0;
   def *defs = NULL;
 
   bool cpp_line = false;
 
-  for (; p->kind != Eof; advance(p)) {
+  out = new_unit();
+  p = new_parser(in);
+
+  for (; p.kind != Eof; advance(&p)) {
     bool defined = false;
     bool expanded = false;
 
-    if (p->kind == Directive) {
+    if (p.kind == Directive) {
       cpp_line = true;
     }
-    if (p->kind == Lf) {
+    if (p.kind == Lf) {
       cpp_line = false;
     }
 
     /* perform definition */
-    defined = cpp_define_def(p, &defs, defs_len);
+    defined = cpp_replace_define(&p, &defs, defs_len);
     defs_len += defined;
 
     /* perform defined replacement */
     if (cpp_line &&
-        ((p->kind == Id && !strcmp(p->tok.text, "defined")) ||
-         (p->kind == Directive && (!strcmp(p->tok.text, "#ifdef") ||
-                                   !strcmp(p->tok.text, "#ifndef"))))) {
+        ((p.kind == Id && !strcmp(p.tok.text, "defined")) ||
+         (p.kind == Directive &&
+          (!strcmp(p.tok.text, "#ifdef") || !strcmp(p.tok.text, "#ifndef"))))) {
       char *target = NULL;
       bool paren;
-      if (p->pos + 3 < p->toks_len && peek(p, 1).kind == LParen &&
-          peek(p, 2).kind == Id && peek(p, 3).kind == RParen) {
-        target = p->toks[p->pos + 2].text;
+      if (p.pos + 3 < p.toks_len && peek(&p, 1).kind == LParen &&
+          peek(&p, 2).kind == Id && peek(&p, 3).kind == RParen) {
+        target = p.toks[p.pos + 2].text;
         paren = true;
-      } else if (p->pos + 1 < p->toks_len && peek(p, 1).kind == Id) {
-        target = p->toks[p->pos + 1].text;
+      } else if (p.pos + 1 < p.toks_len && peek(&p, 1).kind == Id) {
+        target = p.toks[p.pos + 1].text;
         paren = false;
       }
 
       if (target) {
         int j;
         loc pos;
-        pos.ln = p->tok.line;
-        pos.col = p->tok.column;
+        pos.ln = p.tok.line;
+        pos.col = p.tok.column;
 
-        if (!strcmp(p->tok.text, "#ifdef")) {
-          out[out_len++] = new_token(Directive, pos, "#if");
-        } else if (!strcmp(p->tok.text, "#ifndef")) {
-          out[out_len++] = new_token(Directive, pos, "#if");
-          out[out_len++] = new_token(Exclaim, pos, "!");
+        if (!strcmp(p.tok.text, "#ifdef")) {
+          unit_append(out, new_token(Directive, pos, "#if"));
+        } else if (!strcmp(p.tok.text, "#ifndef")) {
+          unit_append(out, new_token(Directive, pos, "#if"));
+          unit_append(out, new_token(Exclaim, pos, "!"));
         }
 
         for (j = 0; j < defs_len; j++) {
           if (!strcmp(defs[j].id.text, target)) {
-            out[out_len++] = new_token(Number, pos, "1");
+            unit_append(out, new_token(Number, pos, "1"));
             break;
           }
         }
 
         if (j == defs_len) {
-          out[out_len++] = new_token(Number, pos, "0");
+          unit_append(out, new_token(Number, pos, "0"));
         }
-        set_pos(p, p->pos += paren ? 3 : 1);
+        set_pos(&p, p.pos += paren ? 3 : 1);
         continue;
       }
     }
 
     /* perform macro expansion */
-    expanded = cpp_define_expand(&out, &out_len, p, defs, defs_len, NULL, 0);
-
+    expanded = cpp_replace_expand(out, &p, defs, defs_len, NULL, 0);
     if (!defined && !expanded) {
-      out = realloc(out, sizeof(token_t) * (out_len + 8));
-      out[out_len++] = p->tok;
+      unit_append(out, p.tok);
     }
   }
-
-  out[out_len++] = p->tok;
-  *toks_out = out;
-  return out_len;
+  unit_append(out, p.tok);
+  return out;
 }
 
 bool cpp_cond_cond(parser_t *p) {
@@ -610,14 +582,13 @@ bool cpp_cond_cond(parser_t *p) {
   return cond;
 }
 
-int cpp_cond_if(token_t **toks_out, parser_t *p) {
-  token_t *out = calloc(p->toks_len, sizeof(token_t));
-  int len = 0;
+struct unit *cpp_cond_if(parser_t *p) {
+  struct unit *out;
+
   bool cond = false;
   bool cond_elif = false;
 
-  token_t *toks_nested;
-  int toks_nested_len;
+  out = new_unit();
 
   /* #if */
   if (p->kind != Directive ||
@@ -635,13 +606,14 @@ int cpp_cond_if(token_t **toks_out, parser_t *p) {
       if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
         /* nested #if group */
         int j;
-        toks_nested_len = cpp_cond_if(&toks_nested, p);
-        for (j = 0; j < toks_nested_len; j++) {
-          out[len++] = toks_nested[j];
+        struct unit *nested;
+        nested = cpp_cond_if(p);
+        for (j = 0; j < nested->len; j++) {
+          unit_append(out, *unit_at(nested, j));
         }
       } else {
         /* regular text */
-        out[len++] = p->tok;
+        unit_append(out, p->tok);
       }
     }
   } else { /* skip to end of text */
@@ -661,12 +633,13 @@ int cpp_cond_if(token_t **toks_out, parser_t *p) {
              strcmp(p->tok.text, "#endif");) {
         if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
           int j;
-          toks_nested_len = cpp_cond_if(&toks_nested, p);
-          for (j = 0; j < toks_nested_len; j++) {
-            out[len++] = toks_nested[j];
+          struct unit *nested;
+          nested = cpp_cond_if(p);
+          for (j = 0; j < nested->len; j++) {
+            unit_append(out, *unit_at(nested, j));
           }
         } else {
-          out[len++] = p->tok;
+          unit_append(out, p->tok);
           advance(p);
         }
       }
@@ -686,12 +659,13 @@ int cpp_cond_if(token_t **toks_out, parser_t *p) {
       for (; strcmp(p->tok.text, "#endif"); advance(p)) {
         if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
           int j;
-          toks_nested_len = cpp_cond_if(&toks_nested, p);
-          for (j = 0; j < toks_nested_len; j++) {
-            out[len++] = toks_nested[j];
+          struct unit *nested;
+          nested = cpp_cond_if(p);
+          for (j = 0; j < nested->len; j++) {
+            unit_append(out, *unit_at(nested, j));
           }
         } else {
-          out[len++] = p->tok;
+          unit_append(out, p->tok);
         }
       }
     } else {
@@ -708,45 +682,47 @@ int cpp_cond_if(token_t **toks_out, parser_t *p) {
   }
   advance(p);
 
-  *toks_out = out;
-  return len;
+  return out;
 }
 
-int cpp_cond(token_t **toks_out, parser_t *p) {
-  token_t *out = calloc(p->toks_len, sizeof(token_t));
-  int len = 0;
+struct unit *cpp_cond(struct unit *in) {
+  struct unit *out;
+  parser_t p;
 
-  for (; p->kind != Eof; advance(p)) {
-    if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
-      token_t *toks_if;
-      int toks_if_len = cpp_cond_if(&toks_if, p);
+  out = new_unit();
+  p = new_parser(in);
 
+  for (; p.kind != Eof; advance(&p)) {
+    if (p.kind == Directive && !strcmp(p.tok.text, "#if")) {
+      struct unit *unit_if;
       int j;
-      for (j = 0; j < toks_if_len; j++) {
-        out[len++] = toks_if[j];
+
+      unit_if = cpp_cond_if(&p);
+      for (j = 0; j < unit_if->len; j++) {
+        unit_append(out, *unit_at(unit_if, j));
       }
       continue;
     }
-    out[len++] = p->tok;
+    unit_append(out, p.tok);
   }
-  out[len++] = p->tok;
+  unit_append(out, p.tok);
 
-  *toks_out = out;
-  return len;
+  return out;
 }
 
-int filter_newline(token_t **toks_out, token_t *toks_in, int toks_in_len) {
-  token_t *out = calloc(toks_in_len, sizeof(token_t));
-  int len = 0;
+struct unit *filter_newline(struct unit *in) {
+  struct unit *out = new_unit();
 
   int i = 0;
-  for (i = 0; i < toks_in_len; i++) {
-    if (toks_in[i].kind != Lf) {
-      out[len++] = toks_in[i];
+  for (i = 0; i < in->len; i++) {
+    token_t tok;
+    tok = *unit_at(in, i);
+    if (tok.kind != Lf) {
+      unit_append(out, tok);
     }
   }
-  *toks_out = out;
-  return len;
+
+  return out;
 }
 
 unsigned long eval_cpp_const_expr(ast_node_t *root) {

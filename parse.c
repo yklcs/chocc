@@ -374,6 +374,14 @@ void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
   }
 }
 
+parser_t new_parser(struct unit *src) {
+  parser_t p;
+  p.toks = src->toks;
+  p.toks_len = src->len;
+  set_pos(&p, 0);
+  return p;
+}
+
 void append_node(ast_node_t **parent, int *len, int *cap, ast_node_t child) {
   if (parent == NULL) {
     return;

@@ -1,5 +1,6 @@
 #include "lex.h"
 
+#include <malloc/_malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -335,24 +336,42 @@ token_t lex_next(file *f) {
   }
 }
 
-int lex_file(file *f, token_t **toks) {
-  int cap = 128;
-  int len = 0;
-  *toks = calloc(cap, sizeof(token_t));
+struct unit *lex_file(file *f) {
+  struct unit *u;
+
+  u = new_unit();
+
   for (; peek_char(f);) {
-    token_t tok;
-    tok = lex_next(f);
-    if (len >= cap) {
-      cap *= 2;
-      *toks = realloc(*toks, sizeof(token_t) * cap);
-    }
-    (*toks)[len++] = tok;
+    token_t tok = lex_next(f);
+    unit_append(u, tok);
   }
-  if ((*toks)[len].kind != Eof) {
-    (*toks)[len++] = new_token(Eof, f->cur, "");
+  if (u->toks[u->len].kind != Eof) {
+    token_t tok = new_token(Eof, f->cur, "");
+    unit_append(u, tok);
   }
 
-  return len;
+  return u;
+}
+
+struct unit *new_unit(void) {
+  struct unit *u;
+  u = calloc(1, sizeof(*u));
+  u->cap = 128;
+  u->len = 0;
+  u->toks = calloc(u->cap, sizeof(*u->toks));
+  return u;
+}
+
+void unit_append(struct unit *u, token_t tok) {
+  if (u->len >= u->cap) {
+    u->cap *= 3;
+    u->toks = realloc(u->toks, sizeof(*u->toks) * u->cap);
+  }
+  u->toks[u->len++] = tok;
+}
+
+token_t *unit_at(struct unit *u, int i) {
+  return u->toks + i;
 }
 
 void print_token(token_t tok) {

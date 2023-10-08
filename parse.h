@@ -26,6 +26,9 @@ void expect(parser_t *parser, token_kind_t kind);
 /* advance advances the parser state by one token. */
 void advance(parser_t *parser);
 
+/* new_parser */
+parser_t new_parser(struct unit *);
+
 /* set_pos sets the parser state to the position specified by pos. */
 void set_pos(parser_t *parser, int pos);
 

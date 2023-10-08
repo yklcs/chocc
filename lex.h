@@ -156,6 +156,17 @@ token_t new_token(token_kind_t kind, loc pos, const char *text);
 
 void print_token(token_t token);
 
+/* unit represents a translation unit (a vec of tokens) */
+struct unit {
+  token_t *toks;
+  int len;
+  int cap;
+};
+
+struct unit *new_unit(void);
+void unit_append(struct unit *u, token_t tok);
+token_t *unit_at(struct unit *u, int i);
+
 /*
  * Lexes and returns the next token in the given file.
  */
@@ -164,6 +175,6 @@ token_t lex_next(file *f);
 /*
  * Lexes the entire file.
  */
-int lex_file(file *f, token_t **toks);
+struct unit *lex_file(file *f);
 
 #endif

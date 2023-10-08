@@ -8,8 +8,7 @@
 #include "parse.h"
 
 int main(int argc, char *argv[]) {
-  token_t *toks = NULL;
-  int toks_len;
+  struct unit *u;
   parser_t parser;
   ast_node_t **ast;
   ast_node_t **node;
@@ -23,13 +22,10 @@ int main(int argc, char *argv[]) {
   f = load_file(argv[1]);
   print_file(f);
 
-  toks_len = lex_file(f, &toks);
-  toks_len = cpp(&toks, toks, toks_len);
+  u = lex_file(f);
+  u = cpp(u);
 
-  parser.toks = toks;
-  parser.toks_len = toks_len;
-  set_pos(&parser, 0);
-
+  parser = new_parser(u);
   ast = parse(&parser);
 
   for (node = ast; *node != NULL; node++) {
