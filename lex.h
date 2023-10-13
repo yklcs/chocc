@@ -115,35 +115,10 @@ typedef enum {
   Eof
 } token_kind_t;
 
-static const char *token_kind_map[] = {
-    "Number",    "String",      "Character", "LBrace",     "RBrace",
-    "LBrack",    "RBrack",      "LParen",    "RParen",     "Comma",
-    "Semi",      "Assn",        "PlusAssn",  "MinusAssn",  "StarAssn",
-    "SlashAssn", "PercentAssn", "AmpAssn",   "BarAssn",    "CaretAssn",
-    "LShftAssn", "RShftAssn",   "PlusPlus",  "MinusMinus", "Plus",
-    "Minus",     "Star",        "Slash",     "Percent",    "Tilde",
-    "Amp",       "Bar",         "Caret",     "LShft",      "RShft",
-    "Exclaim",   "AmpAmp",      "BarBar",    "Question",   "Colon",
-    "Eq",        "Neq",         "Lt",        "Gt",         "Leq",
-    "Geq",       "Arrow",       "Dot",       "Id",         "Auto",
-    "Break",     "Case",        "Char",      "Const",      "Continue",
-    "Default",   "Do",          "Double",    "Else",       "Enum",
-    "Extern",    "Float",       "For",       "Goto",       "If",
-    "Inline",    "Int",         "Long",      "Register",   "Restrict",
-    "Return",    "Short",       "Signed",    "Sizeof",     "Static",
-    "Struct",    "Switch",      "Typedef",   "Union",      "Unsigned",
-    "Void",      "Volatile",    "While",     "Directive",  "Lf",
-    "Eof"};
+extern const char *token_kind_map[Eof + 1];
 
 #define KEYWORDS 34
-static const char *keywords[KEYWORDS] = {
-    "auto",     "break",    "case",     "char",   "const",   "continue",
-    "default",  "do",       "double",   "else",   "enum",    "extern",
-    "float",    "for",      "goto",     "if",     "inline",  "int",
-    "long",     "register", "restrict", "return", "short",   "signed",
-    "sizeof",   "static",   "struct",   "switch", "typedef", "union",
-    "unsigned", "void",     "volatile", "while",
-};
+extern const char *keywords[KEYWORDS];
 
 typedef struct {
   token_kind_t kind;

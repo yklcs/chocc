@@ -866,6 +866,7 @@ unsigned long eval_cpp_const_expr(ast_node_t *root) {
       }
     }
     }
+    break;
   }
   default: {
     puts("invalid cpp constant expression");
