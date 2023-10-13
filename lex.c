@@ -1,8 +1,44 @@
 #include "lex.h"
+#include "io.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+void lexer_advance(struct lexer *l) {
+  line ln;
+
+  if (l->pos.ln > l->f->lines_len ||
+      (l->pos.ln == l->f->lines_len &&
+       l->f->lines[l->f->lines_len - 1].len < l->pos.col)) {
+    l->c = 0;
+    return;
+  }
+
+  ln = l->f->lines[l->pos.ln - 1];
+
+  if (l->pos.col > ln.len) {
+    /* overflow to next line */
+    l->pos.col = 1;
+    l->pos.ln++;
+    l->c = '\n';
+  } else if (l->pos.col == ln.len && ln.splice) {
+    /* splicing, return characters after splicing but maintain cursor */
+    ln = l->f->lines[++l->pos.ln - 1];
+    l->pos.col = 1;
+    l->c = ln.src[l->pos.col++ - 1];
+  } else {
+    l->c = ln.src[l->pos.col++ - 1];
+  }
+}
+
+char lexer_peek(struct lexer *l) {
+  struct lexer l_fake = {0};
+  l_fake.f = l->f;
+  l_fake.pos = l->pos;
+  lexer_advance(&l_fake);
+  return l_fake.c;
+}
 
 token_t new_token(token_kind_t kind, loc pos, const char *text) {
   token_t tok = {0};
@@ -16,12 +52,13 @@ token_t new_token(token_kind_t kind, loc pos, const char *text) {
   return tok;
 }
 
-token_t lex_next(file *f) {
+token_t lex_next(struct lexer *l) {
   loc pos;
-  char c = next_char(f, &pos);
 
-  for (;; c = next_char(f, &pos)) {
-    switch (c) {
+  for (;;) {
+    pos = l->pos;
+    lexer_advance(l);
+    switch (l->c) {
     case '\0': {
       return new_token(Eof, pos, "");
     }
@@ -66,187 +103,185 @@ token_t lex_next(file *f) {
     }
     }
 
-    if (c == '=') {
-      if (peek_char(f) == '=') {
-        next_char(f, NULL);
+    if (l->c == '=') {
+      if (lexer_peek(l) == '=') {
+        lexer_advance(l);
         return new_token(Eq, pos, "==");
       } else {
         return new_token(Assn, pos, "=");
       }
     }
 
-    if (c == '+') {
-      char c_peek = peek_char(f);
+    if (l->c == '+') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '+') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(PlusPlus, pos, "++");
       } else if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(PlusAssn, pos, "+=");
       } else {
         return new_token(Plus, pos, "+");
       }
     }
 
-    if (c == '-') {
-      char c_peek = peek_char(f);
+    if (l->c == '-') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '-') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(MinusMinus, pos, "--");
       } else if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(MinusAssn, pos, "-=");
       } else if (c_peek == '>') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(Arrow, pos, "->");
       } else {
         return new_token(Minus, pos, "-");
       }
     }
 
-    if (c == '*') {
-      char c_peek = peek_char(f);
+    if (l->c == '*') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(StarAssn, pos, "*=");
       } else {
         return new_token(Star, pos, "*");
       }
     }
 
-    if (c == '/') {
-      char c_peek = peek_char(f);
+    if (l->c == '/') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(SlashAssn, pos, "/=");
       } else if (c_peek == '/') {
-        /* comment, skip until lf */
-        c = next_char(f, &pos);
-        for (; c != '\n';) {
-          c = next_char(f, &pos);
+        /* c++ style comment, skip until lf */
+        for (; l->c != '\n';) {
+          lexer_advance(l);
         }
       } else if (c_peek == '*') {
         /* block comment, skip until match */
-        c = next_char(f, &pos);
-        for (; c != '*' || peek_char(f) != '/';) {
-          c = next_char(f, &pos);
+        for (; l->c != '*' || lexer_peek(l) != '/';) {
+          lexer_advance(l);
         }
-        next_char(f, &pos);
+        lexer_advance(l);
       } else {
         return new_token(Slash, pos, "/");
       }
     }
 
-    if (c == '%') {
-      char c_peek = peek_char(f);
+    if (l->c == '%') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(PercentAssn, pos, "%=");
       } else {
         return new_token(Percent, pos, "%");
       }
     }
 
-    if (c == '&') {
-      char c_peek = peek_char(f);
+    if (l->c == '&') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(AmpAssn, pos, "&=");
       } else if (c_peek == '&') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(AmpAmp, pos, "&&");
       } else {
         return new_token(Amp, pos, "&");
       }
     }
 
-    if (c == '|') {
-      char c_peek = peek_char(f);
+    if (l->c == '|') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(BarAssn, pos, "|=");
       } else if (c_peek == '|') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(BarBar, pos, "||");
       } else {
         return new_token(Bar, pos, "|");
       }
     }
 
-    if (c == '^') {
-      char c_peek = peek_char(f);
+    if (l->c == '^') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(CaretAssn, pos, "^=");
       } else {
         return new_token(Caret, pos, "^");
       }
     }
 
-    if (c == '<') {
-      char c_peek = peek_char(f);
+    if (l->c == '<') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '<') {
-        c = next_char(f, NULL);
-        c_peek = peek_char(f);
+        lexer_advance(l);
+        c_peek = lexer_peek(l);
         if (c_peek == '=') {
-          next_char(f, NULL);
+          lexer_advance(l);
           return new_token(LShftAssn, pos, "<<=");
         } else {
           return new_token(LShft, pos, "<<");
         }
       } else if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(Leq, pos, "<=");
       } else {
         return new_token(Lt, pos, "<");
       }
     }
 
-    if (c == '>') {
-      char c_peek = peek_char(f);
+    if (l->c == '>') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '>') {
-        c = next_char(f, NULL);
-        c_peek = peek_char(f);
+        lexer_advance(l);
+        c_peek = lexer_peek(l);
         if (c_peek == '=') {
-          next_char(f, NULL);
+          lexer_advance(l);
           return new_token(RShftAssn, pos, ">>=");
         } else {
           return new_token(RShft, pos, ">>");
         }
       } else if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(Geq, pos, ">=");
       } else {
         return new_token(Gt, pos, ">");
       }
     }
 
-    if (c == '!') {
-      char c_peek = peek_char(f);
+    if (l->c == '!') {
+      char c_peek = lexer_peek(l);
       if (c_peek == '=') {
-        next_char(f, NULL);
+        lexer_advance(l);
         return new_token(Neq, pos, "!=");
       } else {
         return new_token(Exclaim, pos, "!");
       }
     }
 
-    if (c == '"') {
+    if (l->c == '"') {
       char text[1024] = {0};
       int i;
       text[0] = '"';
-      c = next_char(f, NULL);
-      for (i = 1; c != '"'; i++) {
-        if (c == '\n') {
+      lexer_advance(l);
+      for (i = 1; l->c != '"'; i++) {
+        if (l->c == '\n') {
           printf("malformed string literal at %d:%d", pos.ln, pos.col);
           exit(1);
         }
-        text[i] = c;
-        c = next_char(f, NULL);
-        if (text[i] == '\\' && c == '"') {
+        text[i] = l->c;
+        lexer_advance(l);
+        if (text[i] == '\\' && l->c == '"') {
           /* escaped quote */
-          text[++i] = c;
-          c = next_char(f, NULL);
+          text[++i] = l->c;
+          lexer_advance(l);
         }
       }
       text[i] = '"';
@@ -254,41 +289,42 @@ token_t lex_next(file *f) {
       return new_token(String, pos, text);
     }
 
-    if (c == '#') {
+    if (l->c == '#') {
       char text[32] = {0};
       int i = 0;
-      char c_peek = peek_char(f);
+      char c_peek = lexer_peek(l);
 
-      if (!f->lines[pos.ln - 1].cpp) {
+      if (!l->f->lines[pos.ln - 1].cpp) {
         puts("cpp directive must be on its own line");
         exit(1);
       }
 
-      text[i++] = c;
-      for (; 'a' <= c_peek && c_peek <= 'z'; c_peek = peek_char(f)) {
-        text[i++] = next_char(f, NULL);
+      text[i++] = l->c;
+      for (; 'a' <= c_peek && c_peek <= 'z'; c_peek = lexer_peek(l)) {
+        lexer_advance(l);
+        text[i++] = l->c;
       }
 
       return new_token(Directive, pos, text);
     }
 
-    if (c == '\'') {
+    if (l->c == '\'') {
       char text[16] = {0};
       int i = 0;
 
       text[0] = '\'';
-      c = next_char(f, NULL);
-      for (i = 1; c != '\''; i++) {
-        if (c == '\n') {
+      lexer_advance(l);
+      for (i = 1; l->c != '\''; i++) {
+        if (l->c == '\n') {
           printf("malformed character literal at %d:%d", pos.ln, pos.col);
           exit(1);
         }
-        text[i] = c;
-        c = next_char(f, NULL);
-        if (c == '\\' && c == '\'') {
+        text[i] = l->c;
+        lexer_advance(l);
+        if (l->c == '\\' && l->c == '\'') {
           /* escaped quote */
-          text[++i] = c;
-          c = next_char(f, NULL);
+          text[++i] = l->c;
+          lexer_advance(l);
         }
       }
       text[i] = '\'';
@@ -296,31 +332,34 @@ token_t lex_next(file *f) {
       return new_token(Character, pos, text);
     }
 
-    if ('0' <= c && c <= '9') {
+    if ('0' <= l->c && l->c <= '9') {
       char text[32] = {0};
       int i = 0;
-      char c_peek = peek_char(f);
+      char c_peek = lexer_peek(l);
 
-      text[i++] = c;
-      for (; ('0' <= c_peek && c_peek <= '9'); c_peek = peek_char(f)) {
-        text[i++] = next_char(f, NULL);
+      text[i++] = l->c;
+      for (; ('0' <= c_peek && c_peek <= '9'); c_peek = lexer_peek(l)) {
+        lexer_advance(l);
+        text[i++] = l->c;
       }
 
       return new_token(Number, pos, text);
     }
 
-    if (c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
+    if (l->c == '_' || ('a' <= l->c && l->c <= 'z') ||
+        ('A' <= l->c && l->c <= 'Z')) {
       char text[32] = {0};
       int i = 0;
       int j = 0;
-      char c_peek = peek_char(f);
+      char c_peek = lexer_peek(l);
 
-      text[i++] = c;
+      text[i++] = l->c;
       for (;
            c_peek == '_' || ('a' <= c_peek && c_peek <= 'z') ||
            ('A' <= c_peek && c_peek <= 'Z') || ('0' <= c_peek && c_peek <= '9');
-           c_peek = peek_char(f)) {
-        text[i++] = next_char(f, NULL);
+           c_peek = lexer_peek(l)) {
+        lexer_advance(l);
+        text[i++] = l->c;
       }
 
       /* check if keyword */
@@ -335,17 +374,28 @@ token_t lex_next(file *f) {
   }
 }
 
+struct lexer new_lexer(file *f) {
+  struct lexer l = {0};
+  l.f = f;
+  l.pos.col = 1;
+  l.pos.ln = 1;
+
+  return l;
+}
+
 struct unit *lex_file(file *f) {
   struct unit *u;
+  struct lexer l;
 
   u = new_unit();
+  l = new_lexer(f);
 
-  for (; peek_char(f);) {
-    token_t tok = lex_next(f);
+  for (; lexer_peek(&l);) {
+    token_t tok = lex_next(&l);
     unit_append(u, tok);
   }
   if (u->toks[u->len].kind != Eof) {
-    token_t tok = new_token(Eof, f->cur, "");
+    token_t tok = new_token(Eof, l.pos, "");
     unit_append(u, tok);
   }
 

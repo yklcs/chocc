@@ -74,8 +74,6 @@ file *src_to_file(char *src) {
     break;
   }
 
-  f->cur.col = 1;
-  f->cur.ln = 1;
   return f;
 }
 
@@ -90,64 +88,4 @@ void print_file(file *f) {
   for (i = 0; i < f->lines_len; i++) {
     printf("%3d | %s\n", f->lines[i].num, f->lines[i].src);
   }
-}
-
-char next_char(file *f, loc *pos) {
-  line ln;
-
-  if (f->cur.ln > f->lines_len ||
-      (f->cur.ln == f->lines_len &&
-       f->lines[f->lines_len - 1].len < f->cur.col)) {
-    /* eof */
-    if (pos) {
-      ln = f->lines[f->lines_len];
-      pos->ln = f->lines_len;
-      pos->col = ln.len + 1;
-    }
-
-    return 0;
-  }
-
-  ln = f->lines[f->cur.ln - 1];
-
-  if (f->cur.col > ln.len) {
-    /* overflow to next line */
-    if (pos) {
-      pos->col = f->cur.col;
-      pos->ln = f->cur.ln;
-    }
-
-    f->cur.col = 1;
-    f->cur.ln++;
-
-    return '\n';
-  } else if (f->cur.col == ln.len && ln.splice) {
-    /* splicing, return characters after splicing but maintain cursor */
-    ln = f->lines[++f->cur.ln - 1];
-    f->cur.col = 1;
-
-    if (pos) {
-      pos->col = f->cur.col;
-      pos->ln = f->cur.ln;
-    }
-
-    return ln.src[f->cur.col++ - 1];
-  } else {
-    /* normal */
-    if (pos) {
-      pos->col = f->cur.col;
-      pos->ln = f->cur.ln;
-    }
-
-    return ln.src[f->cur.col++ - 1];
-  }
-}
-
-char peek_char(file *f) {
-  file f_fake = {0};
-  f_fake.lines = f->lines;
-  f_fake.lines_cap = f->lines_cap;
-  f_fake.lines_len = f->lines_len;
-  f_fake.cur = f->cur;
-  return next_char(&f_fake, NULL);
 }

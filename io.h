@@ -13,8 +13,6 @@ typedef struct file {
   struct line *lines;
   int lines_len;
   int lines_cap;
-
-  struct loc cur;
 } file;
 
 typedef struct line {
@@ -31,16 +29,5 @@ typedef struct line {
 file *load_file(char *fname);
 
 void print_file(file *);
-
-/*
- * Gets the next character after the file cursor and advances the cursor,
- * while setting pos to the position of the character.
- */
-char next_char(file *f, loc *pos);
-
-/*
- * Gets the next character after the file cursor without advancing the cursor.
- */
-char peek_char(file *f);
 
 #endif

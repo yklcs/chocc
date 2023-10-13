@@ -5,6 +5,16 @@
 #include "chocc.h"
 #include "io.h"
 
+struct lexer {
+  file *f;
+  char c;
+  loc pos;
+};
+
+struct lexer new_lexer(file *f);
+void lexer_advance(struct lexer *);
+char lexer_peek(struct lexer *l);
+
 typedef enum {
   /* literals */
   Number,
@@ -145,7 +155,7 @@ token_t *unit_at(struct unit *u, int i);
 /*
  * Lexes and returns the next token in the given file.
  */
-token_t lex_next(file *f);
+token_t lex_next(struct lexer *);
 
 /*
  * Lexes the entire file.
