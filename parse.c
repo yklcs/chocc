@@ -1,6 +1,7 @@
 #include "parse.h"
 #include "chocc.h"
 #include "lex.h"
+#include "unit.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -374,10 +375,10 @@ void print_ast(ast_node_t *root, int depth, bool last, char *pad) {
   }
 }
 
-parser_t new_parser(struct unit *src) {
+parser_t new_parser(struct unit *u) {
   parser_t p = {0};
-  p.toks = src->toks;
-  p.toks_len = src->len;
+  p.toks = u->toks;
+  p.toks_len = u->toks_len;
   set_pos(&p, 0);
   return p;
 }
@@ -1523,18 +1524,12 @@ ast_node_t *parse_type_name(parser_t *p) {
   return node;
 }
 
-int parse(struct unit *src, ast_node_t **ast) {
+void parse(struct unit *u) {
   parser_t p;
-  ast_node_t *nodes;
-  int len;
-  int cap;
 
-  p = new_parser(src);
-  len = 0;
-  cap = 128;
-  nodes = calloc(cap, sizeof(*nodes));
+  p = new_parser(u);
 
-  for (len = 0; p.kind != Eof;) {
+  for (; p.kind != Eof;) {
     ast_node_t *node = NULL;
     int pos = p.pos;
 
@@ -1544,32 +1539,22 @@ int parse(struct unit *src, ast_node_t **ast) {
     if (p.kind == LBrace) { /* FnDefn */
       set_pos(&p, pos);
       node = parse_fn_defn(&p);
-
-      if (len >= cap) {
-        cap *= 2;
-        nodes = realloc(nodes, cap * sizeof(*nodes));
-      }
-      nodes[len++] = *node;
+      unit_append_node(u, *node);
     } else if (p.kind == Semi || p.kind == Comma || p.kind == Assn) { /* Decl */
       ast_node_t *decls;
+      int i;
+
       set_pos(&p, pos);
       decls = parse_decl(&p);
 
-      if (len + decls->u.list.len >= cap) {
-        cap = (len + decls->u.list.len) * 2;
-        nodes = realloc(nodes, cap * sizeof(*nodes));
+      for (i = 0; i < decls->u.list.len; i++) {
+        unit_append_node(u, *decls->u.list.nodes[i]);
       }
-      memcpy(nodes + len, *decls->u.list.nodes,
-             decls->u.list.len * sizeof(*nodes));
-      len += decls->u.list.len;
     } else {
       printf("unexpected token %s (%s)\n", p.tok.text, token_kind_map[p.kind]);
       throw(&p);
     }
   }
-
-  *ast = nodes;
-  return len;
 }
 
 const char *ast_node_kind_map[] = {"Ident",   "Lit",  "FnDefn",  "DeclSpecs",

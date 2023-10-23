@@ -2,30 +2,24 @@
 #include "chocc.h"
 #include "lex.h"
 #include "parse.h"
+#include "unit.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-struct unit *cpp(struct unit *in) {
+void cpp(struct unit *u) {
   int i;
-  struct unit *u = calloc(1, sizeof(*u));
 
-  u->toks = in->toks;
-  u->cap = in->cap;
-  u->len = in->len;
+  *u = cpp_replace(u);
+  *u = cpp_cond(u);
+  *u = cpp_pragma(u);
+  *u = cpp_include(u);
+  *u = filter_newline(u);
 
-  u = cpp_replace(u);
-  u = cpp_cond(u);
-  u = cpp_pragma(u);
-  u = cpp_include(u);
-  u = filter_newline(u);
-
-  for (i = 0; i < u->len; i++) {
-    print_token(*unit_at(u, i));
+  for (i = 0; i < u->toks_len; i++) {
+    print_token(u->toks[i]);
   }
-
-  return u;
 }
 
 int cpp_replace_define(parser_t *p, def **defs, int defs_len) {
@@ -98,21 +92,21 @@ int cpp_replace_define(parser_t *p, def **defs, int defs_len) {
 
     (*defs)[defs_len].macro = calloc(macro_cap, sizeof(token_t));
     for (; p->kind != Lf && p->kind != Eof; advance(p)) {
-      struct unit *expanded;
+      struct unit expanded;
       int k;
 
       expanded = new_unit();
-      cpp_replace_expand(expanded, p, *defs, defs_len, hideset, hideset_len);
-      for (k = 0; k < expanded->len; k++) {
+      cpp_replace_expand(&expanded, p, *defs, defs_len, hideset, hideset_len);
+      for (k = 0; k < expanded.toks_len; k++) {
         if ((*defs)[defs_len].macro_len >= macro_cap) {
           macro_cap *= 2;
           (*defs)[defs_len].macro =
               realloc((*defs)[defs_len].macro, sizeof(token_t) * macro_cap);
         }
         (*defs)[defs_len].macro[(*defs)[defs_len].macro_len++] =
-            *unit_at(expanded, k);
+            expanded.toks[k];
       }
-      if (!expanded->len) {
+      if (!expanded.toks_len) {
         if ((*defs)[defs_len].macro_len >= macro_cap) {
           macro_cap *= 2;
           (*defs)[defs_len].macro =
@@ -182,7 +176,7 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
         for (;; advance(p)) {
           bool hidden = false;
           int expanded = 0;
-          struct unit *arg_expanded;
+          struct unit arg_expanded;
 
           arg_expanded = new_unit();
 
@@ -204,15 +198,15 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
             }
           }
           if (!hidden) {
-            expanded = cpp_replace_expand(arg_expanded, p, defs, defs_len,
+            expanded = cpp_replace_expand(&arg_expanded, p, defs, defs_len,
                                           hideset, hideset_len);
           }
-          for (j = 0; j < arg_expanded->len; j++) {
+          for (j = 0; j < arg_expanded.toks_len; j++) {
             if (a.len == a.cap) {
               a.cap *= 2;
               a.toks = realloc(a.toks, sizeof(token_t) * a.cap);
             }
-            a.toks[a.len++] = *unit_at(arg_expanded, j);
+            a.toks[a.len++] = arg_expanded.toks[j];
           }
           if (!expanded) {
             if (a.len == a.cap) {
@@ -289,7 +283,7 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
             pos.ln = args[k].toks[0].line;
             pos.col = args[k].toks[0].column;
 
-            unit_append(out, new_token(String, pos, str));
+            unit_append_tok(out, new_token(String, pos, str));
             j++;
             break;
           }
@@ -304,7 +298,7 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
 
             int l;
 
-            token_t *prev = out->toks + out->len - 1;
+            token_t *prev = out->toks + out->toks_len - 1;
             token_kind_t cat_kind = -1;
 
             switch (prev->kind) {
@@ -439,9 +433,9 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
             pos.col = prev->column;
             pos.ln = prev->line;
 
-            out->toks[out->len - 1] = new_token(cat_kind, pos, cat_str);
+            out->toks[out->toks_len - 1] = new_token(cat_kind, pos, cat_str);
             for (l = 1; l < args[k].len; l++) {
-              unit_append(out, args[k].toks[l]);
+              unit_append_tok(out, args[k].toks[l]);
             }
             j += 2;
             break;
@@ -451,14 +445,14 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
           if (!strcmp(defs[i].macro[j].text, defs[i].params[k].text)) {
             int l;
             for (l = 0; l < args[k].len; l++) {
-              unit_append(out, args[k].toks[l]);
+              unit_append_tok(out, args[k].toks[l]);
             }
             break;
           }
         }
         /* no replacement */
         if (k == defs[i].params_len) {
-          unit_append(out, defs[i].macro[j]);
+          unit_append_tok(out, defs[i].macro[j]);
         }
       }
       return true;
@@ -477,7 +471,7 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
       }
 
       for (j = 0; j < defs[i].macro_len; j++) {
-        unit_append(out, defs[i].macro[j]);
+        unit_append_tok(out, defs[i].macro[j]);
       }
 
       return true;
@@ -489,8 +483,8 @@ int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
   return false;
 }
 
-struct unit *cpp_replace(struct unit *in) {
-  struct unit *out;
+struct unit cpp_replace(struct unit *in) {
+  struct unit out;
   parser_t p;
 
   int defs_len = 0;
@@ -539,21 +533,21 @@ struct unit *cpp_replace(struct unit *in) {
         pos.col = p.tok.column;
 
         if (!strcmp(p.tok.text, "#ifdef")) {
-          unit_append(out, new_token(Directive, pos, "#if"));
+          unit_append_tok(&out, new_token(Directive, pos, "#if"));
         } else if (!strcmp(p.tok.text, "#ifndef")) {
-          unit_append(out, new_token(Directive, pos, "#if"));
-          unit_append(out, new_token(Exclaim, pos, "!"));
+          unit_append_tok(&out, new_token(Directive, pos, "#if"));
+          unit_append_tok(&out, new_token(Exclaim, pos, "!"));
         }
 
         for (j = 0; j < defs_len; j++) {
           if (!strcmp(defs[j].id.text, target)) {
-            unit_append(out, new_token(Number, pos, "1"));
+            unit_append_tok(&out, new_token(Number, pos, "1"));
             break;
           }
         }
 
         if (j == defs_len) {
-          unit_append(out, new_token(Number, pos, "0"));
+          unit_append_tok(&out, new_token(Number, pos, "0"));
         }
         set_pos(&p, p.pos += paren ? 3 : 1);
         continue;
@@ -561,12 +555,12 @@ struct unit *cpp_replace(struct unit *in) {
     }
 
     /* perform macro expansion */
-    expanded = cpp_replace_expand(out, &p, defs, defs_len, NULL, 0);
+    expanded = cpp_replace_expand(&out, &p, defs, defs_len, NULL, 0);
     if (!defined && !expanded) {
-      unit_append(out, p.tok);
+      unit_append_tok(&out, p.tok);
     }
   }
-  unit_append(out, p.tok);
+  unit_append_tok(&out, p.tok);
   return out;
 }
 
@@ -584,8 +578,8 @@ bool cpp_cond_cond(parser_t *p) {
   return cond;
 }
 
-struct unit *cpp_cond_if(parser_t *p) {
-  struct unit *out;
+struct unit cpp_cond_if(parser_t *p) {
+  struct unit out;
 
   bool cond = false;
   bool cond_elif = false;
@@ -608,14 +602,14 @@ struct unit *cpp_cond_if(parser_t *p) {
       if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
         /* nested #if group */
         int j;
-        struct unit *nested;
+        struct unit nested;
         nested = cpp_cond_if(p);
-        for (j = 0; j < nested->len; j++) {
-          unit_append(out, *unit_at(nested, j));
+        for (j = 0; j < nested.toks_len; j++) {
+          unit_append_tok(&out, nested.toks[j]);
         }
       } else {
         /* regular text */
-        unit_append(out, p->tok);
+        unit_append_tok(&out, p->tok);
       }
     }
   } else { /* skip to end of text */
@@ -635,13 +629,13 @@ struct unit *cpp_cond_if(parser_t *p) {
              strcmp(p->tok.text, "#endif");) {
         if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
           int j;
-          struct unit *nested;
+          struct unit nested;
           nested = cpp_cond_if(p);
-          for (j = 0; j < nested->len; j++) {
-            unit_append(out, *unit_at(nested, j));
+          for (j = 0; j < nested.toks_len; j++) {
+            unit_append_tok(&out, nested.toks[j]);
           }
         } else {
-          unit_append(out, p->tok);
+          unit_append_tok(&out, p->tok);
           advance(p);
         }
       }
@@ -661,13 +655,13 @@ struct unit *cpp_cond_if(parser_t *p) {
       for (; strcmp(p->tok.text, "#endif"); advance(p)) {
         if (p->kind == Directive && !strcmp(p->tok.text, "#if")) {
           int j;
-          struct unit *nested;
+          struct unit nested;
           nested = cpp_cond_if(p);
-          for (j = 0; j < nested->len; j++) {
-            unit_append(out, *unit_at(nested, j));
+          for (j = 0; j < nested.toks_len; j++) {
+            unit_append_tok(&out, nested.toks[j]);
           }
         } else {
-          unit_append(out, p->tok);
+          unit_append_tok(&out, p->tok);
         }
       }
     } else {
@@ -687,8 +681,8 @@ struct unit *cpp_cond_if(parser_t *p) {
   return out;
 }
 
-struct unit *cpp_cond(struct unit *in) {
-  struct unit *out;
+struct unit cpp_cond(struct unit *in) {
+  struct unit out;
   parser_t p;
 
   out = new_unit();
@@ -696,30 +690,30 @@ struct unit *cpp_cond(struct unit *in) {
 
   for (; p.kind != Eof; advance(&p)) {
     if (p.kind == Directive && !strcmp(p.tok.text, "#if")) {
-      struct unit *unit_if;
+      struct unit unit_if;
       int j;
 
       unit_if = cpp_cond_if(&p);
-      for (j = 0; j < unit_if->len; j++) {
-        unit_append(out, *unit_at(unit_if, j));
+      for (j = 0; j < unit_if.toks_len; j++) {
+        unit_append_tok(&out, unit_if.toks[j]);
       }
       continue;
     }
-    unit_append(out, p.tok);
+    unit_append_tok(&out, p.tok);
   }
-  unit_append(out, p.tok);
+  unit_append_tok(&out, p.tok);
 
   return out;
 }
 
-struct unit *cpp_pragma(struct unit *in) {
-  struct unit *out = new_unit();
+struct unit cpp_pragma(struct unit *in) {
+  struct unit out = new_unit();
   bool pragma_ln = false;
   int i;
 
-  for (i = 0; i < in->len; i++) {
+  for (i = 0; i < in->toks_len; i++) {
     token_t tok;
-    tok = *unit_at(in, i);
+    tok = in->toks[i];
     if (tok.kind == Directive && !strcmp(tok.text, "#pragma")) {
       pragma_ln = true;
     }
@@ -728,7 +722,7 @@ struct unit *cpp_pragma(struct unit *in) {
     }
 
     if (!pragma_ln) {
-      unit_append(out, tok);
+      unit_append_tok(&out, tok);
     }
   }
 
@@ -736,14 +730,14 @@ struct unit *cpp_pragma(struct unit *in) {
 }
 
 /* TODO: handle includes properly */
-struct unit *cpp_include(struct unit *in) {
-  struct unit *out = new_unit();
+struct unit cpp_include(struct unit *in) {
+  struct unit out = new_unit();
   bool include_ln = false;
   int i;
 
-  for (i = 0; i < in->len; i++) {
+  for (i = 0; i < in->toks_len; i++) {
     token_t tok;
-    tok = *unit_at(in, i);
+    tok = in->toks[i];
     if (tok.kind == Directive && !strcmp(tok.text, "#include")) {
       include_ln = true;
     }
@@ -752,22 +746,22 @@ struct unit *cpp_include(struct unit *in) {
     }
 
     if (!include_ln) {
-      unit_append(out, tok);
+      unit_append_tok(&out, tok);
     }
   }
 
   return out;
 }
 
-struct unit *filter_newline(struct unit *in) {
-  struct unit *out = new_unit();
+struct unit filter_newline(struct unit *in) {
+  struct unit out = new_unit();
 
   int i = 0;
-  for (i = 0; i < in->len; i++) {
+  for (i = 0; i < in->toks_len; i++) {
     token_t tok;
-    tok = *unit_at(in, i);
+    tok = in->toks[i];
     if (tok.kind != Lf) {
-      unit_append(out, tok);
+      unit_append_tok(&out, tok);
     }
   }
 

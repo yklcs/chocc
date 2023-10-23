@@ -18,21 +18,21 @@ typedef struct def {
   def_kind kind;
 } def;
 
-struct unit *cpp(struct unit *in);
+void cpp(struct unit *in);
 
-struct unit *cpp_replace(struct unit *in);
+struct unit cpp_replace(struct unit *in);
 int cpp_replace_define(parser_t *p, def **defs, int defs_len);
 int cpp_replace_expand(struct unit *out, parser_t *p, def *defs, int defs_len,
                        token_t *hideset, int hideset_len);
 
-struct unit *cpp_cond(struct unit *in);
-struct unit *cpp_cond_if(parser_t *p);
+struct unit cpp_cond(struct unit *in);
+struct unit cpp_cond_if(parser_t *p);
 
-struct unit *cpp_pragma(struct unit *in);
+struct unit cpp_pragma(struct unit *in);
 
-struct unit *cpp_include(struct unit *in);
+struct unit cpp_include(struct unit *in);
 
-struct unit *filter_newline(struct unit *in);
+struct unit filter_newline(struct unit *in);
 
 /*
  * Evalulate integer constant expression

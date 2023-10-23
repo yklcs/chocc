@@ -30,6 +30,7 @@ void expect(parser_t *parser, token_kind_t kind);
 void advance(parser_t *parser);
 
 /* new_parser */
+struct unit;
 parser_t new_parser(struct unit *);
 
 /* set_pos sets the parser state to the position specified by pos. */
@@ -462,6 +463,6 @@ typedef struct ast_node_t {
 } ast_node_t;
 
 void print_ast(ast_node_t *root, int depth, bool last, char *pad);
-int parse(struct unit *, ast_node_t **);
+void parse(struct unit *);
 
 #endif

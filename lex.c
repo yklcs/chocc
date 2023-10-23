@@ -1,5 +1,6 @@
 #include "lex.h"
 #include "io.h"
+#include "unit.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -374,53 +375,28 @@ token_t lex_next(struct lexer *l) {
   }
 }
 
-struct lexer new_lexer(file *f) {
+struct lexer new_lexer(struct unit *u) {
   struct lexer l = {0};
-  l.f = f;
+  l.f = u->file;
   l.pos.col = 1;
   l.pos.ln = 1;
 
   return l;
 }
 
-struct unit *lex_file(file *f) {
-  struct unit *u;
+void lex(struct unit *u) {
   struct lexer l;
 
-  u = new_unit();
-  l = new_lexer(f);
+  l = new_lexer(u);
 
   for (; lexer_peek(&l);) {
     token_t tok = lex_next(&l);
-    unit_append(u, tok);
+    unit_append_tok(u, tok);
   }
-  if (u->toks[u->len].kind != Eof) {
+  if (u->toks[u->toks_len].kind != Eof) {
     token_t tok = new_token(Eof, l.pos, "");
-    unit_append(u, tok);
+    unit_append_tok(u, tok);
   }
-
-  return u;
-}
-
-struct unit *new_unit(void) {
-  struct unit *u;
-  u = calloc(1, sizeof(*u));
-  u->cap = 128;
-  u->len = 0;
-  u->toks = calloc(u->cap, sizeof(*u->toks));
-  return u;
-}
-
-void unit_append(struct unit *u, token_t tok) {
-  if (u->len >= u->cap) {
-    u->cap *= 3;
-    u->toks = realloc(u->toks, sizeof(*u->toks) * u->cap);
-  }
-  u->toks[u->len++] = tok;
-}
-
-token_t *unit_at(struct unit *u, int i) {
-  return u->toks + i;
 }
 
 void print_token(token_t tok) {

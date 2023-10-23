@@ -3,7 +3,7 @@ CCFLAGS 				+= -std=c90 -Wall -Wextra -Wpedantic -Werror
 CCFLAGS_DEBUG 	+= -g3 -fsanitize=address,undefined
 BIN 						= chocc
 LIB							= chocc.so
-SOURCES					= parse.c io.c lex.c cpp.c error.c
+SOURCES					= parse.c io.c lex.c cpp.c error.c unit.c
 
 .PHONY: all debug build clean test
 

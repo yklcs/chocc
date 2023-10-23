@@ -6,12 +6,11 @@
 #include "io.h"
 #include "lex.h"
 #include "parse.h"
+#include "unit.h"
 
 int main(int argc, char *argv[]) {
   file *f;
-  struct unit *u;
-  ast_node_t *ast;
-  int ast_len;
+  struct unit u;
   int i;
 
   if (argc != 2) {
@@ -22,13 +21,16 @@ int main(int argc, char *argv[]) {
   f = load_file(argv[1]);
   print_file(f);
 
-  u = lex_file(f);
-  u = cpp(u);
+  u = new_unit();
+  u.file = f;
 
-  ast_len = parse(u, &ast);
+  lex(&u);
+  cpp(&u);
 
-  for (i = 0; i < ast_len; i++) {
-    print_ast(ast + i, 0, i == ast_len - 1, "");
+  parse(&u);
+
+  for (i = 0; i < u.nodes_len; i++) {
+    print_ast(u.nodes + i, 0, i == u.nodes_len - 1, "");
   }
 
   return 0;
