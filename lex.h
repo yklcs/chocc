@@ -5,13 +5,14 @@
 #include "chocc.h"
 #include "io.h"
 
+struct unit;
+
 struct lexer {
-  file *f;
+  struct unit *unit;
   char c;
   loc pos;
 };
 
-struct unit;
 struct lexer new_lexer(struct unit *);
 void lexer_advance(struct lexer *);
 char lexer_peek(struct lexer *l);
@@ -123,10 +124,11 @@ typedef enum {
 
   /* internal */
   Lf,
-  Eof
+  Eof,
+  Nil
 } token_kind_t;
 
-extern const char *token_kind_map[Eof + 1];
+extern const char *token_kind_map[Nil + 1];
 
 #define KEYWORDS 34
 extern const char *keywords[KEYWORDS];

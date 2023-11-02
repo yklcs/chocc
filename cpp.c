@@ -12,10 +12,29 @@ void cpp(struct unit *u) {
   int i;
 
   *u = cpp_replace(u);
+  if (u->err) {
+    return;
+  }
+
   *u = cpp_cond(u);
+  if (u->err) {
+    return;
+  }
+
   *u = cpp_pragma(u);
+  if (u->err) {
+    return;
+  }
+
   *u = cpp_include(u);
+  if (u->err) {
+    return;
+  }
+
   *u = filter_newline(u);
+  if (u->err) {
+    return;
+  }
 
   for (i = 0; i < u->toks_len; i++) {
     print_token(u->toks[i]);

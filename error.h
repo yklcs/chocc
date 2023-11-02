@@ -14,7 +14,7 @@ struct error {
   loc pos;
 };
 
-struct error new_error(error_kind kind, char *msg, loc pos);
-void print_error(struct error);
+struct error *new_error(error_kind kind, char *msg, loc pos);
+void print_error(struct error *);
 
 #endif

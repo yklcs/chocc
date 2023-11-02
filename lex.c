@@ -1,4 +1,5 @@
 #include "lex.h"
+#include "error.h"
 #include "io.h"
 #include "unit.h"
 
@@ -8,15 +9,16 @@
 
 void lexer_advance(struct lexer *l) {
   line ln;
+  file *f = l->unit->file;
 
-  if (l->pos.ln > l->f->lines_len ||
-      (l->pos.ln == l->f->lines_len &&
-       l->f->lines[l->f->lines_len - 1].len < l->pos.col)) {
+  if (l->pos.ln > f->lines_len ||
+      (l->pos.ln == f->lines_len &&
+       f->lines[f->lines_len - 1].len < l->pos.col)) {
     l->c = 0;
     return;
   }
 
-  ln = l->f->lines[l->pos.ln - 1];
+  ln = f->lines[l->pos.ln - 1];
 
   if (l->pos.col > ln.len) {
     /* overflow to next line */
@@ -25,7 +27,7 @@ void lexer_advance(struct lexer *l) {
     l->c = '\n';
   } else if (l->pos.col == ln.len && ln.splice) {
     /* splicing, return characters after splicing but maintain cursor */
-    ln = l->f->lines[++l->pos.ln - 1];
+    ln = f->lines[++l->pos.ln - 1];
     l->pos.col = 1;
     l->c = ln.src[l->pos.col++ - 1];
   } else {
@@ -35,7 +37,7 @@ void lexer_advance(struct lexer *l) {
 
 char lexer_peek(struct lexer *l) {
   struct lexer l_fake = {0};
-  l_fake.f = l->f;
+  l_fake.unit = l->unit;
   l_fake.pos = l->pos;
   lexer_advance(&l_fake);
   return l_fake.c;
@@ -274,8 +276,8 @@ token_t lex_next(struct lexer *l) {
       lexer_advance(l);
       for (i = 1; l->c != '"'; i++) {
         if (l->c == '\n') {
-          printf("malformed string literal at %d:%d", pos.ln, pos.col);
-          exit(1);
+          l->unit->err = new_error(LexErr, "malformed string literal", pos);
+          return new_token(Nil, pos, "");
         }
         text[i] = l->c;
         lexer_advance(l);
@@ -295,9 +297,10 @@ token_t lex_next(struct lexer *l) {
       int i = 0;
       char c_peek = lexer_peek(l);
 
-      if (!l->f->lines[pos.ln - 1].cpp) {
-        puts("cpp directive must be on its own line");
-        exit(1);
+      if (!l->unit->file->lines[pos.ln - 1].cpp) {
+        l->unit->err =
+            new_error(LexErr, "cpp directive must be on its own line", pos);
+        return new_token(Nil, pos, "");
       }
 
       text[i++] = l->c;
@@ -317,8 +320,8 @@ token_t lex_next(struct lexer *l) {
       lexer_advance(l);
       for (i = 1; l->c != '\''; i++) {
         if (l->c == '\n') {
-          printf("malformed character literal at %d:%d", pos.ln, pos.col);
-          exit(1);
+          l->unit->err = new_error(LexErr, "malformed character literal", pos);
+          return new_token(Nil, pos, "");
         }
         text[i] = l->c;
         lexer_advance(l);
@@ -377,7 +380,7 @@ token_t lex_next(struct lexer *l) {
 
 struct lexer new_lexer(struct unit *u) {
   struct lexer l = {0};
-  l.f = u->file;
+  l.unit = u;
   l.pos.col = 1;
   l.pos.ln = 1;
 
@@ -391,6 +394,9 @@ void lex(struct unit *u) {
 
   for (; lexer_peek(&l);) {
     token_t tok = lex_next(&l);
+    if (u->err != NULL) {
+      return;
+    }
     unit_append_tok(u, tok);
   }
   if (u->toks[u->toks_len].kind != Eof) {
@@ -422,7 +428,7 @@ const char *token_kind_map[] = {
     "Return",    "Short",       "Signed",    "Sizeof",     "Static",
     "Struct",    "Switch",      "Typedef",   "Union",      "Unsigned",
     "Void",      "Volatile",    "While",     "Directive",  "Lf",
-    "Eof"};
+    "Eof",       "Nil"};
 
 const char *keywords[KEYWORDS] = {
     "auto",     "break",    "case",     "char",   "const",   "continue",

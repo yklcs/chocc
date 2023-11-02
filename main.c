@@ -3,6 +3,7 @@
 
 #include "chocc.h"
 #include "cpp.h"
+#include "error.h"
 #include "io.h"
 #include "lex.h"
 #include "parse.h"
@@ -25,6 +26,11 @@ int main(int argc, char *argv[]) {
   u.file = f;
 
   lex(&u);
+  if (u.err) {
+    print_error(u.err);
+    return 1;
+  }
+
   cpp(&u);
 
   parse(&u);

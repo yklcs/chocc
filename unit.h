@@ -1,5 +1,7 @@
 #ifndef CHOCC_UNIT_H
 #define CHOCC_UNIT_H
+#include <malloc/_malloc.h>
+#include <string.h>
 #pragma once
 
 #include "lex.h"
@@ -15,6 +17,8 @@ struct unit {
   ast_node_t *nodes;
   int nodes_len;
   int nodes_cap;
+
+  struct error *err;
 };
 
 struct unit new_unit(void);
