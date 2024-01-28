@@ -1,4 +1,5 @@
 import pytest
+import os
 from ctypes import *
 from distutils.sysconfig import parse_makefile
 
@@ -41,8 +42,8 @@ class UNIT(Structure):
 @pytest.fixture
 def chocc():
     makefile = parse_makefile("Makefile")
-    cdll.LoadLibrary(makefile["LIB"])
-    chocc = CDLL(makefile["LIB"])
+    dll = os.path.join(os.getcwd(), makefile["LIB"])
+    chocc = CDLL(dll)
     return chocc
 
 

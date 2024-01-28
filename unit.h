@@ -1,8 +1,8 @@
 #ifndef CHOCC_UNIT_H
 #define CHOCC_UNIT_H
-#include <malloc/_malloc.h>
-#include <string.h>
 #pragma once
+
+#include <string.h>
 
 #include "lex.h"
 #include "parse.h"

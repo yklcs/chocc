@@ -1,5 +1,5 @@
 #include "error.h"
-#include <malloc/_malloc.h>
+#include <stdlib.h>
 
 struct error *new_error(error_kind kind, char *msg, loc pos) {
   struct error *err;
